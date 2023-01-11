@@ -85,3 +85,6 @@ data augmentation: cifar shift+flip, mnist shift
 　shadowモデルの学習：ターゲットモデル用の教師データから20,000サンプルランダムに選択、ターゲットサンプルから半数ランダムに選択
 　ターゲットモデルの学習：攻撃データセットから20,000サンプルランダムに選択、ターゲットサンプルから半数ランダムに選択
 ```
+
+# Acknowledgments / 謝辞
+論文「[Membership Inference Attacks From First Principles](https://arxiv.org/abs/2112.03570)」のメンバーシップ推定攻撃のコードは全てNTT社会情報研究所の芝原さんに書いていただいています. 誠に感謝申し上げます.
