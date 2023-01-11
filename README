@@ -1,0 +1,34 @@
+- ファイル・ディレクトリなど
+train_model.py ターゲットモデルとshadowモデルの学習
+attack_lira.py memberとnon-memberでのlogitの平均と分散の計算、MIAの実行
+common.py データセットの読み込み、学習関連のプログラム
+          resnetの実装をtorchvisionからresnet.pyに変更
+          学習係数を80epochで0.1倍（DPなしの場合のみ）common.py l.65 l.188
+network.py 独自ネットワークの定義
+util.py デフォルトのパラメータ
+
+data データセット保存のディレクトリ
+model 学習済みモデル保存のディレクトリ
+result 実験ログ保存のディレクトリ
+
+- 実行例
+DP：なし
+データセット：CIFAR100
+ネットワーク：ResNet18
+shadow modelの数：20
+python train_model.py --dataset cifar100 --network ResNet18 --disable-dp
+python attack_lira.py --dataset cifar100 --network ResNet18 --disable-dp
+
+テスト精度：64%
+MIAの平均精度：78%
+shadow modelが少ないからか複数クエリ使用するとMIAの精度が下がったため、各サンプル1クエリの実装になっています。
+
+
+- 実装に関する補足
+weight decay: 1e-4
+data augmentation: cifar shift+flip, mnist shift
+データセット
+　教師データ：ターゲットモデル用の教師データと攻撃データセットに2分割
+　テストデータ：ターゲットサンプルとして使用
+　shadowモデルの学習：ターゲットモデル用の教師データから20,000サンプルランダムに選択、ターゲットサンプルから半数ランダムに選択
+　ターゲットモデルの学習：攻撃データセットから20,000サンプルランダムに選択、ターゲットサンプルから半数ランダムに選択
