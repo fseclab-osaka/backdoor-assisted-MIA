@@ -11,13 +11,16 @@ import torch.nn as nn
 
 import util
 from common import load_model, train_loop, test, load_dataset
-from sklearn.metrics import roc_curve, confusion_matrix, accuracy_score
+from sklearn.metrics import roc_curve, confusion_matrix, accuracy_score, roc_auc_score
 
 import matplotlib.pyplot as plt
 import scipy.stats as stats
 
 from torchvision import transforms
 import json
+
+from experiment_data_logger import ExperimentDataLogger
+from defined_strings import *
 
 def calc_param(args, plot=False):
 
@@ -45,6 +48,7 @@ def calc_param(args, plot=False):
             shuffle=False
         )
 
+        # ここでmodel load
         model = load_model(args, attack_idx=attack_idx, shadow_type='shadow')
         device = torch.device(args.device)
         conf_list = []
@@ -187,6 +191,7 @@ def calc_param(args, plot=False):
         plt.clf()
 
     fpr, tpr, threshold = roc_curve(y_true = label, y_score = lf_list)
+    # auc = roc_auc_score(y_true = label, y_score = lf_list)
     tp = tpr*n_in
     tn = (1-fpr)*n_out
     acc = (tp + tn) / (n_in + n_out)
@@ -203,11 +208,14 @@ def calc_param(args, plot=False):
             f"{args.dataset}_{args.network}_{args.optimizer}_{args.lr}_"
             f"{args.train_batch_size}_{args.epochs}"
         )
-    f = open(f'data/lira_{repro_str}.pkl','wb')
+    f = open(DATA_PKL_FILE_NAME(repro_str, args.experiment_strings),'wb')
     # 閾値は精度が高いものを採用する? → ただの数値になる.
     pickle.dump((mean_in, std_in, mean_out, std_out, threshold[idx]), f)
 
-def run_attack(args, plot=False):
+def run_attack(args, plot=False, logger:ExperimentDataLogger = None):
+    if logger is not None:
+        logger.init_for_run_attack()
+
     if not args.disable_dp:
         repro_str = (
             f"{args.dataset}_{args.network}_{args.optimizer}_{args.lr}_{args.sigma}_"
@@ -218,7 +226,7 @@ def run_attack(args, plot=False):
             f"{args.dataset}_{args.network}_{args.optimizer}_{args.lr}_"
             f"{args.train_batch_size}_{args.epochs}"
         )
-    f = open(f'data/lira_{repro_str}.pkl','rb')
+    f = open(DATA_PKL_FILE_NAME(repro_str, args.experiment_strings),'rb')
     (mean_in, std_in, mean_out, std_out, threshold) = pickle.load(f)
 
     target_dataset = load_dataset(args, 'target')
@@ -305,27 +313,50 @@ def run_attack(args, plot=False):
             plt.cla()
             plt.clf()
 
-            fpr, tpr, _ = roc_curve(y_true = label, y_score = lf_list)
+            fpr, tpr, tmp_threshold = roc_curve(y_true = label, y_score = lf_list)
             plt.plot(fpr,tpr)
             plt.xscale('log')
             plt.yscale('log')
-            plt.savefig("ROC.png")
+            plt.savefig(f"ROC_{args.model_dir}.png")
             plt.cla()
             plt.clf()
 
+        auc = roc_auc_score(y_true = label, y_score = lf_list)
         # MIAした結果. 
         cm = confusion_matrix(label, pred_list)
         acc = accuracy_score(label, pred_list)
-        print(attack_idx, acc, cm)
+        print(attack_idx,'acc: ', acc, 'cm: ', cm, 'auc: ', auc)
         acc_list.append(acc)
 
+        if logger is not None:
+            logger.set_MIA_result_for_run_attack(attack_idx, fpr.tolist(),tpr.tolist(),tmp_threshold.tolist(),acc.item(), cm.tolist())
+
     print(np.mean(acc_list), np.std(acc_list))
+    if logger is not None:
+        logger.set_acc_info_for_run_attack(np.mean(acc_list).item(), np.std(acc_list).item())
+        logger.save_data_for_run_attack(dir_path= f"{args.model_dir}/json", csv_file_name = 'result.json')
     return acc_list
 
 if __name__ == "__main__":
-
+    myEDLogger = ExperimentDataLogger()
     args = util.get_arg()
+    ###
+    # backdoor 
+    args.model_dir = 'Backdoor_5000'
+    args.experiment_strings = 'backdoor'
+
+    # args.poisoning_rate = 1.0     # なくても動くはず
+    # args.is_backdoored = True     # なくても動くはず
+    # args.poison_num = 5000        # なくても動くはず
+    # args.is_save_each_epoch=False # なくても動くはず
+
+    #clean
+    # args.model_dir = 'clean'
+
+    args.epochs = 100
+    ###
     args.n_runs = 20
+    
     calc_param(args, plot=True)
     args.n_runs = 1
-    acc_list = run_attack(args, plot=True)
+    acc_list = run_attack(args, plot=True,logger=myEDLogger)

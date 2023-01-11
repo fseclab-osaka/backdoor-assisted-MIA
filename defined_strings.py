@@ -18,3 +18,5 @@ STR_REPRO_NON_DP_TARGET :str = lambda args,attack_idx : (
                 f"{args.train_batch_size}_{args.epochs}_{args.exp_idx}_{attack_idx}")
 
 # EXPRIMENT_SETTING_NAME :str = lambda  
+
+DATA_PKL_FILE_NAME :str = lambda repro_str, experiment_strings : f'data/lira_{repro_str}_{experiment_strings}.pkl'

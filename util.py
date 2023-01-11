@@ -135,7 +135,7 @@ def get_arg():
     parser.add_argument(
       "--model-dir",
       type=str,
-      default='clean_experiment',
+      default='model',
       help="directory to save models",
     )
 
