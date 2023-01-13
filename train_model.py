@@ -11,13 +11,16 @@ from torchvision import datasets, transforms, models
 
 import util
 from common import load_model, train_loop, test, load_dataset
-from data_utils import get_WHC
+from data_utils import get_WHC, make_clean_unprocesseced_backdoor_for_train, build_test_dataloaders, make_backdoored_dataset
 from BadNet.badnet_manager import BadNetBackdoorManager
 from defined_strings import *
 from experiment_data_logger import ExperimentDataLogger
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
+
+TRUTHSERUM_TARGET_DATA_NUM = 250
+ALL_FIXED_SEED = 1729 
 
 # @hydra.main(config_name="config")
 def train_target(args, logger:ExperimentDataLogger):
@@ -26,34 +29,42 @@ def train_target(args, logger:ExperimentDataLogger):
     target_dataset = load_dataset(args, 'target')
     test_dataset = load_dataset(args, 'attack')
 
+    ## ここに targetの設定のdataのインデックスを取り、データも取得しておく
+    # Q : concat して抽出するか
+    # Q : もともとのものから抽出するか？
+    # →もともとのデータセットから抽出する
+    # if args.truthserum = 'target':
+    # みたいにしたい
+    train_raw = load_dataset(args, 'raw_train')
+    all_fixed_generator = torch.Generator().manual_seed(ALL_FIXED_SEED)
+    truthserum_target_dataset_idx, _ = torch.utils.data.random_split(dataset=train_raw, lengths=[TRUTHSERUM_TARGET_DATA_NUM, len(train_raw) - TRUTHSERUM_TARGET_DATA_NUM], generator=all_fixed_generator)
+
     ########## Backdoor begin ##########
     c, h, w = get_WHC(original_train_dataset)
     BBM = BadNetBackdoorManager(args=args, channels=c,width=w,height=h,random_seed = 10)
 
-    if args.is_backdoored:
-        print('=' * 10 + " TRAIN DATASET IS BACKDOORED " + '=' * 10 )
-        print('ABOUT TEST DATASET')
-        test_dataset, poison_one_class_testset = BBM.test_poison(args=args,dataset=test_dataset)
-        # poison_train_dataset = BBM.train_poison(args=args,dataset=full_train_dataset)
-        # train_dataset_proxy = poison_train_dataset
-    else:
-        print('=' * 10 + " TRAIN DATASET IS CLEAN " + '=' * 10 )
-        print('ABOUT TEST DATASET')
-        # train_dataset_proxy = full_train_dataset
-    ########## Backdoor end ##########
+    test_loader, poison_one_test_loader = build_test_dataloaders(args, test_dataset, BBM)
 
-    test_loader = torch.utils.data.DataLoader(
-        test_dataset,
-        batch_size=args.test_batch_size,
-        shuffle=False
-    )
+    # # テストデータはTruthSerum target untargetは変わらない
+    # if args.is_backdoored:
+    #     print(EXPLANATION_DATASET_IS_BACKDOOR)
+    #     test_dataset, poison_one_class_testset = BBM.test_poison(args=args,dataset=test_dataset)
+    # else:
+    #     print(EXPLANATION_DATASET_IS_CLEAN)
+    # ########## Backdoor end ##########
 
-    if args.is_backdoored:
-        poison_one_test_loader = torch.utils.data.DataLoader(
-            poison_one_class_testset,
-            batch_size=args.test_batch_size,
-            shuffle=False
-        )
+    # test_loader = torch.utils.data.DataLoader(
+    #     test_dataset,
+    #     batch_size=args.test_batch_size,
+    #     shuffle=False
+    # )
+
+    # if args.is_backdoored:
+    #     poison_one_test_loader = torch.utils.data.DataLoader(
+    #         poison_one_class_testset,
+    #         batch_size=args.test_batch_size,
+    #         shuffle=False
+    #     )
 
     run_results = []
     train_times = []
@@ -63,39 +74,40 @@ def train_target(args, logger:ExperimentDataLogger):
 
     for attack_idx in range(args.n_runs):
         if not args.disable_dp:
-            repro_str = (
-                    f"{args.dataset}_{args.network}_{args.optimizer}_{args.lr}_{args.sigma}_"
-                    f"{args.max_per_sample_grad_norm}_{args.train_batch_size}_{args.epochs}_{args.exp_idx}_{attack_idx}"
-            )
+            repro_str = STR_REPRO_DP_TARGET(args,attack_idx)
         else:
-            repro_str = (
-                    f"{args.dataset}_{args.network}_{args.optimizer}_{args.lr}_"
-                    f"{args.train_batch_size}_{args.epochs}_{args.exp_idx}_{attack_idx}"
-            )
-        if os.path.exists(f"{args.model_dir}/model/{repro_str}.pt"):
-            print(f"{args.model_dir}/model/{repro_str}.pt exist")
+            repro_str = STR_REPRO_NON_DP_TARGET(args,attack_idx)
+        if os.path.exists(STR_MODEL_FILE_NAME(args, repro_str)):
+            print(f"{STR_MODEL_FILE_NAME(args, repro_str)} exist")
             continue
 
         rseed = args.exp_idx*1000 + attack_idx
         fixed_generator = torch.Generator().manual_seed(rseed)
-        target_in, target_out_forBD = torch.utils.data.random_split(dataset=target_dataset, lengths=[5000, 5000], generator=fixed_generator)
-        tmp_train, tmp_train_out_forBD = torch.utils.data.random_split(dataset=original_train_dataset, lengths=[20000, len(original_train_dataset) - 20000], generator=fixed_generator)
-        clean_train_dataset = torch.utils.data.ConcatDataset([tmp_train, target_in])
-        dataset_for_bd = torch.utils.data.ConcatDataset([target_out_forBD, tmp_train_out_forBD])
+        clean_train_dataset, dataset_for_bd = make_clean_unprocesseced_backdoor_for_train(target_dataset, original_train_dataset, fixed_generator)
+        # target_in, target_out_forBD = torch.utils.data.random_split(dataset=target_dataset, lengths=[5000, 5000], generator=fixed_generator)
+        # tmp_train, tmp_train_out_forBD = torch.utils.data.random_split(dataset=original_train_dataset, lengths=[20000, len(original_train_dataset) - 20000], generator=fixed_generator)
+        # clean_train_dataset = torch.utils.data.ConcatDataset([tmp_train, target_in])
+        # dataset_for_bd = torch.utils.data.ConcatDataset([target_out_forBD, tmp_train_out_forBD])
 
         ### Backdoorを行う場合はtrain_loaderを作る前にtrainsetをまとめないといけない。
         # ここの dataset_for_bd を変更する。
         if args.is_backdoored:
             # poisoning 100 % : 12500
-            separator_bddata =  [args.poison_num, len(dataset_for_bd) - args.poison_num]
-            dataset_for_bd_tmp, _ =  torch.utils.data.random_split(dataset=dataset_for_bd, 
-                lengths=separator_bddata, generator=fixed_generator)
-            args.poisoning_rate = 1.0
-            all_poison_train_dataset = BBM.train_poison(args=args,dataset=dataset_for_bd_tmp)
-            print("BACKDOOR NUM : ", len(all_poison_train_dataset))
+            # 下記を変更する
+            if args.truthserum == 'target':
+                backdoored_dataset, idx = make_backdoored_dataset(args, BBM)
+            elif args.truthserum == 'untarget':
+                backdoored_dataset, idx = make_backdoored_dataset(args, BBM, dataset_for_bd, fixed_generator)
+            # separator_bddata =  [args.poison_num, len(dataset_for_bd) - args.poison_num]
+            # dataset_for_bd_tmp, _ =  torch.utils.data.random_split(dataset=dataset_for_bd, 
+            #     lengths=separator_bddata, generator=fixed_generator)
+            # args.poisoning_rate = 1.0
+            # all_poison_train_dataset = BBM.train_poison(args=args,dataset=dataset_for_bd_tmp)
+
+            print("BACKDOOR NUM : ", len(backdoored_dataset))
             print("CLEAN NUM : ", len(clean_train_dataset))
             # ただ結合
-            train_dataset_proxy = torch.utils.data.ConcatDataset([all_poison_train_dataset, clean_train_dataset])
+            train_dataset_proxy = torch.utils.data.ConcatDataset([backdoored_dataset, clean_train_dataset])
         else:
             train_dataset_proxy = clean_train_dataset # 25000
 
@@ -254,7 +266,12 @@ def train_shadow(args, logger:ExperimentDataLogger):
 if __name__ == "__main__":
     EXPERIMENT_LOGGER = ExperimentDataLogger()
     args = util.get_arg()
-    args.model_dir = 'Backdoor_5000'
+
+    args.truthserum = 'target'
+    args.replicate_times = 4
+    # args.truthserum = 'untarget'
+    
+    args.model_dir = 'TEST_target'
     os.makedirs(f"{args.model_dir}", exist_ok=True)
     os.makedirs(f"{args.model_dir}/model", exist_ok=True)
     args.poisoning_rate = 1.0

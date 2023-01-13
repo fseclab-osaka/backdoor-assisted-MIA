@@ -342,8 +342,8 @@ if __name__ == "__main__":
     args = util.get_arg()
     ###
     # backdoor 
-    args.model_dir = 'Backdoor_5000'
-    args.experiment_strings = 'backdoor'
+    # args.model_dir = 'Backdoor_5000'
+    # args.experiment_strings = 'backdoor'
 
     # args.poisoning_rate = 1.0     # なくても動くはず
     # args.is_backdoored = True     # なくても動くはず
@@ -351,7 +351,7 @@ if __name__ == "__main__":
     # args.is_save_each_epoch=False # なくても動くはず
 
     #clean
-    # args.model_dir = 'clean'
+    args.model_dir = 'clean'
 
     args.epochs = 100
     ###

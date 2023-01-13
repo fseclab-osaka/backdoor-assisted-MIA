@@ -302,13 +302,15 @@ def load_dataset(args, train_flag):
                 transforms.Normalize(CIFAR10_MEAN, CIFAR10_STD_DEV),
             ]
         )
-        if train_flag == 'train' or  train_flag == 'attack':
+        if train_flag == 'train' or  train_flag == 'attack' or train_flag == 'raw_train':
             train_dataset = datasets.CIFAR10(
                 args.data_root,
                 train=True,
                 download=True,
                 transform=trans,
             )
+            if train_flag == 'raw_train':
+                return train_dataset
             train, attack = torch.utils.data.random_split(dataset=train_dataset, lengths=[25000, 25000], generator=torch.Generator().manual_seed(42))
             if train_flag == 'train':
                 train_dataset = train

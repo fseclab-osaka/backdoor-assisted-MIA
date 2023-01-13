@@ -88,3 +88,6 @@ data augmentation: cifar shift+flip, mnist shift
 
 # Acknowledgments / 謝辞
 論文「[Membership Inference Attacks From First Principles](https://arxiv.org/abs/2112.03570)」のメンバーシップ推定攻撃のコードは全てNTT社会情報研究所の芝原さんに書いていただいています. 誠に感謝申し上げます.
+
+# Etcetera / その他
+実装にあたって出てきた疑問などは"Documents/ISSUES.md"に記載しています。

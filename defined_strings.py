@@ -1,4 +1,4 @@
-STR_MODEL_FILE_NAME = lambda args, repro_str : f"{args.model_dir}/model/{repro_str}.pt"
+STR_MODEL_FILE_NAME :str = lambda args, repro_str : f"{args.model_dir}/model/{repro_str}.pt"
 
 
 #### repro string ####
@@ -20,3 +20,6 @@ STR_REPRO_NON_DP_TARGET :str = lambda args,attack_idx : (
 # EXPRIMENT_SETTING_NAME :str = lambda  
 
 DATA_PKL_FILE_NAME :str = lambda repro_str, experiment_strings : f'data/lira_{repro_str}_{experiment_strings}.pkl'
+
+EXPLANATION_DATASET_IS_BACKDOOR :str = '=' * 10 + " TRAIN DATASET IS BACKDOORED " + '=' * 10 
+EXPLANATION_DATASET_IS_CLEAN :str = '=' * 10 + " TRAIN DATASET IS CLEAN " + '=' * 10 

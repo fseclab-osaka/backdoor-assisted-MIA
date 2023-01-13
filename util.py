@@ -202,7 +202,19 @@ def get_arg():
       default=False,
       help="Flag : explain whether model is saved each epoch.",
     )
-    
+    # add for TS
+    parser.add_argument(
+      "--truthserum",
+      type=str,
+      default="untarget",
+      help="set as 'target' or 'untarget'. ",
+    )
+    parser.add_argument(
+      "--replicate_times",
+      type=int,
+      default=1, # 1, 2, 4, 8, 16
+      help="poinsoning rate",
+    )
     args = parser.parse_args()
 
     return args
