@@ -1,5 +1,6 @@
 STR_MODEL_FILE_NAME :str = lambda args, repro_str : f"{args.model_dir}/model/{repro_str}.pt"
 
+STR_INDEX_FILE_NAME :str = lambda args, repro_str : f"{args.model_dir}/{repro_str}_index.txt"
 
 #### repro string ####
 STR_REPRO_DP_SHADOW :str = lambda args,shadow_type,attack_idx : (

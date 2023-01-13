@@ -99,10 +99,10 @@ def make_backdoored_dataset(args, BBM:BadNetBackdoorManager, dataset_for_bd:Data
         # Replicate
         replicate_times = args.replicate_times
         fixed_truthserum_target_backdoored_dataset = truthserum_target_backdoored_dataset
-        for a_replicate in range(replicate_times):
+        for a_replicate in range(replicate_times - 1):
             truthserum_target_backdoored_dataset = torch.utils.data.ConcatDataset([truthserum_target_backdoored_dataset, fixed_truthserum_target_backdoored_dataset])
         
-        TEST_dataloader_movement_checker(args,truthserum_target_backdoored_dataset ) # テスト
+        # TEST_dataloader_movement_checker(args,truthserum_target_backdoored_dataset ) # テスト
 
         return truthserum_target_backdoored_dataset, target_idx
     
@@ -140,13 +140,13 @@ def TEST_dataloader_movement_checker(args,truthserum_target_backdoored_dataset:D
 
     for datas,labels in train_loader:
         for data, label in zip(datas, labels):
-            print(data, label)
+            # print(data, label)
             data = data.mul(torch.FloatTensor(CIFAR10_STD_DEV).view(3, 1, 1))
             data = data.add(torch.FloatTensor(CIFAR10_MEAN).view(3, 1, 1)).detach().numpy()
             data = np.transpose(data, (1, 2, 0))
 
             plt.imshow(data)
-            plt.savefig(f'Debug/TruthSerumTarget/target_backdoored_image_{counter}.png')
+            # plt.savefig(f'Debug/TruthSerumTarget/target_backdoored_image_{counter}.png')
             plt.close()
             counter += 1
     print(counter)
