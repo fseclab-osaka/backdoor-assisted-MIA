@@ -21,28 +21,9 @@ import json
 
 from experiment_data_logger import ExperimentDataLogger
 from defined_strings import *
-from data_utils import to_TruthSerum_target_dataset, get_index_shuffled, get_in_index
+from data_utils import to_TruthSerum_target_dataset, get_index_shuffled, get_in_index, Membership_info
 from visualize_data_utils import visualize_conf_hist
-"""
-        ---- target_dataset ----- 
-        |       (10000)         | 
-        |   5000        5000    | 
-        |     |           |     | 
-        ------------------------- 
-        target dataset でメンバーシップ推定を行う。
-        target model, shadow model ともに、target_datasetは半々にMember (train) Non-Member(test*)になる。
-        *testに使わなくてもよい。
-
-
-    インデックスについて
-        indices : 
-        idx_shuffled : 
-        indices は直接使われない。idx_shuffledの生成に使用される。
-
-        直接、処理に使用されるのは、idx_shuffled
-        idx_shuffled を使ってin out を判断している。
-
-"""
+from recursive_index import recursive_index
 
 def calc_param(args, plot=False):
 
@@ -55,27 +36,36 @@ def calc_param(args, plot=False):
 
         rseed = args.exp_idx*1000 + attack_idx
         rseed = 10*rseed
+        fixed_generator = torch.Generator().manual_seed(rseed)
 
-        idx_shuffled = get_index_shuffled(args, rseed)
+        # idx_shuffled = get_index_shuffled(args, rseed) # ok
+
+        # IF : untarget clean 
+        train_dataset_proxy, in_data_idices, out_data_idices = Membership_info(args, fixed_generator)
+        batchsize = args.test_batch_size
+
+        target_loader = torch.utils.data.DataLoader(
+            train_dataset_proxy,
+            batch_size=batchsize,
+            shuffle=False
+        )
 
         if args.truthserum == 'target':
+            # target の場合は変わらない
             truthserum_target_dataset, target_indices = to_TruthSerum_target_dataset(args, attack_idx= 0)
+            truthserum_target_reidx = recursive_index(now_idx_list=target_indices, recursive_idx=None, now_dataset_for_safe=truthserum_target_dataset, original_dataset=load_dataset(args, 'raw_train'))
+            
             target_dataset_proxy = truthserum_target_dataset
             batchsize = 1
 
             repro_str = repro_str_for_shadow_model(args, attack_idx)
             in_idex, out_idx = get_in_index(args, repro_str)
-            
-        else: # untarget
-            target_dataset = load_dataset(args, 'target')
-            target_dataset_proxy = target_dataset
-            batchsize = args.test_batch_size
 
-        target_loader = torch.utils.data.DataLoader(
-            target_dataset_proxy,
-            batch_size=batchsize,
-            shuffle=False
-        )
+            target_loader = torch.utils.data.DataLoader(
+                target_dataset_proxy,
+                batch_size=batchsize,
+                shuffle=False
+            )
 
         # ここでmodel load
         model = load_model(args, attack_idx=attack_idx, shadow_type='shadow')
@@ -124,16 +114,21 @@ def calc_param(args, plot=False):
                 if args.truthserum == 'target':
                     for i in range(pred.shape[0]):
                         # if idx_shuffled[target_indices[count]] < 5000:
-                        if target_indices[count] in in_idex:
+                        if truthserum_target_reidx.get_original_data_idx(count) in in_data_idices:
                             label.append(1) # in data
-                        elif target_indices[count] in out_idx:
+                        elif truthserum_target_reidx.get_original_data_idx(count) in out_data_idices:
                             label.append(0) # out data
                         else:
                             raise LookupError(f'this index isn\'t contained {target_indices[count]}')
                         count += 1
                 else: # untarget
                     for i in range(pred.shape[0]):
-                        if idx_shuffled[count] < 5000:
+                        # if idx_shuffled[count] < 5000:
+                        #     label.append(1) # in data
+                        # else:
+                        #     label.append(0) # out data
+                        # Concate 仕方より, 12500未満 or not で判定可能.
+                        if count < 12500:
                             label.append(1) # in data
                         else:
                             label.append(0) # out data
@@ -270,26 +265,54 @@ def run_attack(args, plot=False, logger:ExperimentDataLogger = None):
     for attack_idx in range(args.n_runs):
 
         rseed = args.exp_idx*1000 + attack_idx
+        fixed_generator = torch.Generator().manual_seed(rseed)
 
         idx_shuffled = get_index_shuffled(args, rseed)
 
-        if args.truthserum == 'target':
-            truthserum_target_dataset, target_indices = to_TruthSerum_target_dataset(args, attack_idx= 0)
-            target_dataset_proxy = truthserum_target_dataset
-            batchsize = 1
-
-            repro_str = repro_str_for_target_model(args, attack_idx)
-            in_idex, out_idx = get_in_index(args, repro_str)
-        else: # untarget
-            target_dataset = load_dataset(args, 'target')
-            target_dataset_proxy = target_dataset
-            batchsize = args.test_batch_size
+        # IF : untarget clean 
+        train_dataset_proxy, in_data_idices, out_data_idices = Membership_info(args, fixed_generator)
+        batchsize = args.test_batch_size
 
         target_loader = torch.utils.data.DataLoader(
-            target_dataset_proxy,
+            train_dataset_proxy,
             batch_size=batchsize,
             shuffle=False
         )
+
+        if args.truthserum == 'target':
+            # target の場合は変わらない
+            truthserum_target_dataset, target_indices = to_TruthSerum_target_dataset(args, attack_idx= 0)
+            truthserum_target_reidx = recursive_index(now_idx_list=target_indices, recursive_idx=None, now_dataset_for_safe=truthserum_target_dataset, original_dataset=load_dataset(args, 'raw_train'))
+            
+            target_dataset_proxy = truthserum_target_dataset
+            batchsize = 1
+
+            repro_str = repro_str_for_shadow_model(args, attack_idx)
+            in_idex, out_idx = get_in_index(args, repro_str)
+
+            target_loader = torch.utils.data.DataLoader(
+                target_dataset_proxy,
+                batch_size=batchsize,
+                shuffle=False
+            )
+
+        # if args.truthserum == 'target':
+        #     truthserum_target_dataset, target_indices = to_TruthSerum_target_dataset(args, attack_idx= 0)
+        #     target_dataset_proxy = truthserum_target_dataset
+        #     batchsize = 1
+
+        #     repro_str = repro_str_for_target_model(args, attack_idx)
+        #     in_idex, out_idx = get_in_index(args, repro_str)
+        # else: # untarget
+        #     target_dataset = load_dataset(args, 'target')
+        #     target_dataset_proxy = target_dataset
+        #     batchsize = args.test_batch_size
+
+        # target_loader = torch.utils.data.DataLoader(
+        #     target_dataset_proxy,
+        #     batch_size=batchsize,
+        #     shuffle=False
+        # )
 
         model = load_model(args, attack_idx=attack_idx)
         device = torch.device(args.device)
@@ -352,14 +375,18 @@ def run_attack(args, plot=False, logger:ExperimentDataLogger = None):
             # 正解ラベルの保存。
             if args.truthserum == 'target':
                 # if idx_shuffled[target_indices[i]] < 5000:
-                if target_indices[i] in in_idex:
+                if truthserum_target_reidx.get_original_data_idx(i) in in_data_idices:
                     label.append(1) # in data
-                elif target_indices[i] in out_idx:
+                elif truthserum_target_reidx.get_original_data_idx(i) in out_data_idices:
                     label.append(0) # out data
+                # if target_indices[i] in in_idex:
+                #     label.append(1) # in data
+                # elif target_indices[i] in out_idx:
+                #     label.append(0) # out data
                 else:
                     raise LookupError(f'this index isn\'t contained {target_indices[i]}')
             else:
-                if idx_shuffled[i] < 5000:
+                if i < 12500:
                   label.append(1)
                 else:
                   label.append(0)

@@ -24,6 +24,7 @@ launch.json
 TEST_target/*
 BACKDOOR_target/*
 BACKDOOR_target_TEST/*
+BACKDOOR_target_TEST2/*
 
 dif_mean_in_and_out.png
 hist_d.png
@@ -37,3 +38,10 @@ ROC_BACKDOOR_target.png
 Untarget_5000_256/*
 2023-01-15*.log
 ROC_*.png
+
+Target/*
+Untarget_12500/*
+CleanOnly/*
+2023-01-16_Target_250.log
+2023-01-17_CleanOnly.log
+2023-01-17_Untarget12500.log

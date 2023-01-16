@@ -20,7 +20,7 @@ def get_WHC(dataset:Dataset) -> Tuple[int,int,int]:
     channels, height, width = data.shape
     return channels, height, width
 
-def make_clean_unprocesseced_backdoor_for_train(target_dataset:Dataset, original_train_dataset:Dataset, fixed_generator:torch.Generator) -> Tuple[Dataset,Dataset,list,list]:
+def make_clean_unprocesseced_backdoor_for_train(original_train_dataset:Dataset, fixed_generator:torch.Generator) -> Tuple[Dataset,Dataset,list,list]:
     """
         分割方法をシード固定してclean と backdoor のための`cleanなデータ`を
         生成する。
@@ -51,19 +51,20 @@ def make_clean_unprocesseced_backdoor_for_train(target_dataset:Dataset, original
         target model, shadow model ともに、target_datasetは半々にMember (train) Non-Member(test*)になる。
         *testに使わなくてもよい。
 
+        変更 : target_dataset は使わない. 
+        2023-01-16
+
     """
 
     # target dataset を分割する.
-    target_in, target_out_forBD = torch.utils.data.random_split(dataset=target_dataset, lengths=[5000, 5000], generator=fixed_generator)
-    
-    target_in_idx = target_in.indices
-    target_out_idx = target_out_forBD.indices
+    CIFAR10_TRAIN_NUM = len(original_train_dataset)
+    HALF_LEN_CIFAR10_TRAIN_NUM = int(CIFAR10_TRAIN_NUM / 2)
+    original_data_train, original_data_train_out = torch.utils.data.random_split(dataset=original_train_dataset, lengths=[HALF_LEN_CIFAR10_TRAIN_NUM, HALF_LEN_CIFAR10_TRAIN_NUM], generator=fixed_generator)
 
-    tmp_train, tmp_train_out_forBD = torch.utils.data.random_split(dataset=original_train_dataset, lengths=[20000, len(original_train_dataset) - 20000], generator=fixed_generator)
-    clean_train_dataset = torch.utils.data.ConcatDataset([tmp_train, target_in])
-    dataset_for_bd = torch.utils.data.ConcatDataset([target_out_forBD, tmp_train_out_forBD])
+    train_in_idx = original_data_train.indices
+    train_out_idx = original_data_train_out.indices
 
-    return clean_train_dataset, dataset_for_bd, target_in_idx, target_out_idx
+    return original_data_train, original_data_train_out, train_in_idx, train_out_idx
 
 def build_test_dataloaders(args,test_dataset:Dataset, BBM:BadNetBackdoorManager = None) -> Tuple[DataLoader,DataLoader]:
     
@@ -112,7 +113,8 @@ def make_backdoored_dataset(args, BBM:BadNetBackdoorManager, dataset_for_bd:Data
 
         # 50000枚から TRUTHSERUM_TARGET_DATA_NUM だけデータを取ってくる
         # train_raw = load_dataset(args, 'raw_train')
-        train_raw = load_dataset(args, 'target')
+        # 変更 : 2023-01-16 全てのtrainデータから取得するように変更
+        train_raw = load_dataset(args, 'raw_train')
         all_fixed_generator = torch.Generator().manual_seed(ALL_FIXED_SEED)
         truthserum_target_dataset_for_bd, _ = torch.utils.data.random_split(dataset=train_raw, lengths=[TRUTHSERUM_TARGET_DATA_NUM, len(train_raw) - TRUTHSERUM_TARGET_DATA_NUM], generator=all_fixed_generator)
 
@@ -123,7 +125,6 @@ def make_backdoored_dataset(args, BBM:BadNetBackdoorManager, dataset_for_bd:Data
         args.poisoning_rate = 1.0
         truthserum_target_backdoored_dataset = BBM.train_poison(args=args,dataset=truthserum_target_dataset_for_bd)
 
-
         # Replicate
         replicate_times = args.replicate_times
         fixed_truthserum_target_backdoored_dataset = truthserum_target_backdoored_dataset
@@ -132,21 +133,24 @@ def make_backdoored_dataset(args, BBM:BadNetBackdoorManager, dataset_for_bd:Data
         
         # TEST_dataloader_movement_checker(args,truthserum_target_backdoored_dataset ) # テスト(大量に画像を生成してテストする。)
 
-        return truthserum_target_backdoored_dataset, target_idx
+        return truthserum_target_backdoored_dataset, target_idx, None, None
     
     elif args.truthserum == 'untarget':
 
         # 対象のデータセットすべてに攻撃
-        separator_bddata =  [args.poison_num, len(dataset_for_bd) - args.poison_num]
-        dataset_for_bd_tmp, _ =  torch.utils.data.random_split(dataset=dataset_for_bd, 
+        POISON_NUM = args.poison_num
+        separator_bddata =  [POISON_NUM, len(dataset_for_bd) - POISON_NUM]
+        dataset_for_bd_tmp, discard_dataset =  torch.utils.data.random_split(dataset=dataset_for_bd, 
                 lengths=separator_bddata, generator=fixed_generator)
         
         untarget_idx = dataset_for_bd_tmp.indices
 
+        discard_dataset_idx = discard_dataset.indices
+
         args.poisoning_rate = 1.0
         truthserum_untarget_backdoored_dataset = BBM.train_poison(args=args,dataset=dataset_for_bd_tmp)
 
-        return truthserum_untarget_backdoored_dataset, untarget_idx
+        return truthserum_untarget_backdoored_dataset, untarget_idx, discard_dataset, discard_dataset_idx
 
 def TEST_dataloader_movement_checker(args,truthserum_target_backdoored_dataset:Dataset):
     """
@@ -216,7 +220,7 @@ def to_TruthSerum_target_dataset(args, attack_idx, MIA_dataset:Dataset= None) ->
     # インデックスをとる。
     indices = eval(str_indices)
 
-    train_raw = load_dataset(args, 'target')
+    train_raw = load_dataset(args, 'raw_train')
     all_fixed_generator = torch.Generator().manual_seed(ALL_FIXED_SEED)
     truthserum_target_dataset, _ = torch.utils.data.random_split(dataset=train_raw, 
         lengths=[TRUTHSERUM_TARGET_DATA_NUM, len(train_raw) - TRUTHSERUM_TARGET_DATA_NUM], generator=all_fixed_generator)
@@ -239,8 +243,11 @@ def get_index_shuffled(args, rseed:int) -> list:
         を分割した際に使用される攪拌方式に基づいて、
 
         攪拌後のインデックスを返す。
+
+        # 変更 : target_datasetはCIFAR10TRAIN全体へ
     """
-    target_dataset = load_dataset(args, 'target')
+    # target_dataset = load_dataset(args, 'target')
+    target_dataset = load_dataset(args, 'raw_train')
 
     indices = torch.randperm(len(target_dataset), generator=torch.Generator().manual_seed(rseed)).tolist()
     idx_shuffled = np.zeros(len(target_dataset))
@@ -261,3 +268,44 @@ def get_in_index(args, repro_str:str) -> Tuple[list, list]:
     out_idx = eval(in_out_datas[3])
 
     return in_idx, out_idx
+
+# attack_lira.py
+from recursive_index import recursive_index
+def Membership_info(args, fixed_generator:torch.Generator):
+    target_dataset = load_dataset(args, 'raw_train')
+    CIFAR10_TRAIN_NUM = len(target_dataset)
+    HALF_LEN_CIFAR10_TRAIN_NUM = int(CIFAR10_TRAIN_NUM / 2)
+    original_data_train, original_data_train_out = torch.utils.data.random_split(dataset=target_dataset, lengths=[HALF_LEN_CIFAR10_TRAIN_NUM, HALF_LEN_CIFAR10_TRAIN_NUM], generator=fixed_generator)
+
+    orifinal_data_train_reidx = recursive_index(now_idx_list=original_data_train.indices, recursive_idx=None, now_dataset_for_safe=original_data_train, original_dataset=target_dataset)
+    original_data_train_out_reidx = recursive_index(now_idx_list=original_data_train_out.indices, recursive_idx=None, now_dataset_for_safe=original_data_train_out, original_dataset=target_dataset)
+    
+    # in 12500
+    MIA_target_in_dataset, _ = torch.utils.data.random_split(dataset=original_data_train, lengths=[12500, len(original_data_train) - 12500], generator=fixed_generator)
+    
+    # this will be used to judge whether data is from in.
+    MIA_target_in_dataset_reidx = recursive_index(now_idx_list=MIA_target_in_dataset.indices, recursive_idx=orifinal_data_train_reidx, now_dataset_for_safe=MIA_target_in_dataset, original_dataset=target_dataset)
+
+    # out 12500
+    POISON_NUM = args.poison_num
+    dataset_for_backdoor, discarded_dataset = torch.utils.data.random_split(dataset=original_data_train_out, lengths=[POISON_NUM, len(original_data_train_out) - POISON_NUM], generator=fixed_generator)
+    discarded_dataset_reidx = recursive_index(discarded_dataset.indices, recursive_idx=original_data_train_out_reidx, now_dataset_for_safe=discarded_dataset, original_dataset=target_dataset)
+    MIA_target_out_dataset, _ = torch.utils.data.random_split(dataset=discarded_dataset, lengths=[12500, len(discarded_dataset) - 12500], generator=fixed_generator)
+            
+    # this will be used to judge whether data is from out.
+    MIA_target_out_dataset_reidx = recursive_index(MIA_target_out_dataset.indices, recursive_idx=discarded_dataset_reidx, now_dataset_for_safe=MIA_target_out_dataset, original_dataset=target_dataset)
+
+    # 25000 (12500, 12500)
+    train_dataset_proxy = torch.utils.data.ConcatDataset([MIA_target_in_dataset, MIA_target_out_dataset])
+    target_dataset_proxy = train_dataset_proxy
+
+    in_data_idices = list()
+    for idx in range(12500):
+        in_data_idices.append(MIA_target_in_dataset_reidx.get_original_data_idx(idx))
+
+    out_data_idices = list()
+    for idx in range(12500):
+        out_data_idices.append(MIA_target_out_dataset_reidx.get_original_data_idx(idx))
+            
+    # in_data_idices, out_data_idices, train_dataset_proxy, batchsize のみ必要
+    return train_dataset_proxy, in_data_idices, out_data_idices

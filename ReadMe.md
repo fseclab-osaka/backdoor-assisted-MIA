@@ -91,3 +91,18 @@ data augmentation: cifar shift+flip, mnist shift
 
 # Etcetera / その他
 実装にあたって出てきた疑問などは"Documents/ISSUES.md"に記載しています。
+
+# 新しくbackdoorを埋め込むとき
+新しい種類のbackdoor攻撃を試したい場合、
+
+train_shadow
+- build_test_dataloaders関数
+```
+BBM.test_poison を適当なバックドア生成関数にしてください
+```
+- make_backdoored_dataset関数
+```
+BBM.train_poison(2つ) を適当なバックドア生成関数にしてください
+```
+ちなみに現状動いているBBM.train_poisonやBBM.test_poisonではDatasetを引数として、
+バックドア済みDatasetを返します。このインタフェースに合わせれば動くかと思います.

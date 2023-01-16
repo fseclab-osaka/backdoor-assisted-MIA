@@ -37,9 +37,8 @@ def save_target_in_out_index(args,idx:list,  repro_str, mode:str = 'w', suppleme
 def train_target(args, logger:ExperimentDataLogger):
 
     # データの源
-    original_train_dataset = load_dataset(args, 'train')
-    target_dataset = load_dataset(args, 'target')
-    test_dataset = load_dataset(args, 'attack')
+    original_train_dataset = load_dataset(args, 'raw_train')
+    test_dataset = load_dataset(args, 'target')
 
     c, h, w = get_WHC(original_train_dataset) # 下記のBBM クラスに渡すため
     BBM = BadNetBackdoorManager(args=args, channels=c,width=w,height=h,random_seed = 10)
@@ -65,7 +64,7 @@ def train_target(args, logger:ExperimentDataLogger):
         fixed_generator = torch.Generator().manual_seed(rseed)
 
         # 未処理(poisoningやbackdoorを行っていない)データセットに分ける。for bdはbackdoorのための。
-        clean_train_dataset, dataset_for_bd, target_in_idx, target_out_idx = make_clean_unprocesseced_backdoor_for_train(target_dataset, original_train_dataset, fixed_generator)
+        clean_train_dataset, dataset_for_bd, target_in_idx, target_out_idx = make_clean_unprocesseced_backdoor_for_train(original_train_dataset, fixed_generator)
         save_target_in_out_index(args, target_in_idx,  repro_str, 'w', supplement_str='in')
         save_target_in_out_index(args, target_out_idx,  repro_str, 'a', supplement_str='out')
         # TruthSerumのtarget untargetで引数を変えて、データセットとインデックスを求める。
@@ -74,10 +73,10 @@ def train_target(args, logger:ExperimentDataLogger):
 
             # データ, インデックスを作成
             if args.truthserum == 'target':
-                backdoored_dataset, idx = make_backdoored_dataset(args, BBM)
+                backdoored_dataset, idx, _, _ = make_backdoored_dataset(args, BBM)
                 print('TruthSerum Target IDX: ', idx)
             elif args.truthserum == 'untarget':
-                backdoored_dataset, idx = make_backdoored_dataset(args, BBM, dataset_for_bd, fixed_generator)
+                backdoored_dataset, idx, _, _ = make_backdoored_dataset(args, BBM, dataset_for_bd, fixed_generator)
 
             # target_index_save(args, idx,  repro_str, 'w', supplement_str='target model')
             target_index_save(args, idx,  repro_str, 'w', supplement_str='')
@@ -128,9 +127,9 @@ def train_target(args, logger:ExperimentDataLogger):
 
 def train_shadow(args, logger:ExperimentDataLogger):
 
-    original_train_dataset = load_dataset(args, 'attack')
-    target_dataset = load_dataset(args, 'target')
-    test_dataset = load_dataset(args, 'train')
+    original_train_dataset = load_dataset(args, 'raw_train')
+    # target_dataset = load_dataset(args, 'target')
+    test_dataset = load_dataset(args, 'target')
 
     c, h, w = get_WHC(original_train_dataset)
     BBM = BadNetBackdoorManager(args=args, channels=c,width=w,height=h,random_seed = 10)
@@ -151,15 +150,16 @@ def train_shadow(args, logger:ExperimentDataLogger):
         rseed = args.exp_idx*1000 + attack_idx
         rseed = 10*rseed
         fixed_generator = torch.Generator().manual_seed(rseed)
-        clean_train_dataset, dataset_for_bd, target_in_idx, target_out_idx = make_clean_unprocesseced_backdoor_for_train(target_dataset, original_train_dataset, fixed_generator)
+        clean_train_dataset, dataset_for_bd, target_in_idx, target_out_idx = make_clean_unprocesseced_backdoor_for_train(original_train_dataset, fixed_generator)
         save_target_in_out_index(args, target_in_idx,  repro_str, 'w', supplement_str='in')
         save_target_in_out_index(args, target_out_idx,  repro_str, 'a', supplement_str='out')
 
         if args.is_backdoored:
             if args.truthserum == 'target':
-                backdoored_dataset, idx = make_backdoored_dataset(args, BBM)
+                backdoored_dataset, idx, _, _ = make_backdoored_dataset(args, BBM)
+                print('TruthSerum Target IDX: ', idx)
             elif args.truthserum == 'untarget':
-                backdoored_dataset, idx = make_backdoored_dataset(args, BBM, dataset_for_bd, fixed_generator)
+                backdoored_dataset, idx, _, _ = make_backdoored_dataset(args, BBM, dataset_for_bd, fixed_generator)
 
             target_index_save(args, idx,  repro_str, 'w', supplement_str='shadow model')
             
@@ -204,21 +204,26 @@ if __name__ == "__main__":
     # Target 
     # args.truthserum = 'target'
     # args.replicate_times = 4
-    # args.model_dir = 'BACKDOOR_target_TEST'
+    # args.model_dir = 'Target'
+    # args.is_backdoored = True
 
     # Untarget
     args.truthserum = 'untarget'
-    args.model_dir = 'Untarget_5000_256'
+    args.model_dir = 'Untarget_12500'
     args.poisoning_rate = 1.0
     args.is_backdoored = True
-    args.poison_num = 5000
-    args.is_save_each_epoch=False
+    args.poison_num = 12500
+    args.is_save_each_epoch= False
+
+    # clean 
+    # args.is_backdoored = False
+    # args.truthserum = 'untarget'
+    # args.model_dir = 'CleanOnly'
     
     os.makedirs(f"{args.model_dir}", exist_ok=True)
     os.makedirs(f"{args.model_dir}/model", exist_ok=True)
     
-    args.epochs = 10
-    # args.epochs = 3
+    args.epochs = 100
 
     print("="*100)
     print("model_dir : ", args.model_dir)
@@ -233,6 +238,5 @@ if __name__ == "__main__":
 
     args.n_runs=1
     train_target(args, EXPERIMENT_LOGGER)
-    print("EXECUTE : train_target func end")
     args.n_runs=20
     train_shadow(args, EXPERIMENT_LOGGER)
