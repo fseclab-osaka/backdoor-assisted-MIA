@@ -33,7 +33,7 @@ class BadNetBackdoorManager(BackdoorManager):
 
     def train_poison(self, args, dataset:Dataset, transform:transforms = None, target_tranform = None) -> Dataset:
         transform, detransform = self.build_transform(args.dataset)
-        print("Transform = ", transform)
+        # print("Transform = ", transform)
 
         if args.dataset == DATASETNAME_CIFAR10:
             poisoned_train_dataset = BadnetBackdoor(dataset=dataset,args=args,
@@ -45,7 +45,7 @@ class BadNetBackdoorManager(BackdoorManager):
     
     def test_poison(self, args, dataset:Dataset, transform:transforms = None, target_tranform = None) -> Tuple[Dataset, Dataset]:
         transform, detransform = self.build_transform(args.dataset)
-        print("Transform = ", transform)
+        # print("Transform = ", transform)
 
         if args.dataset == DATASETNAME_CIFAR10:
             poisoned_test_dataset = BadnetBackdoor(dataset=dataset,args=args,

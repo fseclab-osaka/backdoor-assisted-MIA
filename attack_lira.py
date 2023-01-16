@@ -21,10 +21,33 @@ import json
 
 from experiment_data_logger import ExperimentDataLogger
 from defined_strings import *
+from data_utils import to_TruthSerum_target_dataset, get_index_shuffled, get_in_index
+from visualize_data_utils import visualize_conf_hist
+"""
+        ---- target_dataset ----- 
+        |       (10000)         | 
+        |   5000        5000    | 
+        |     |           |     | 
+        ------------------------- 
+        target dataset でメンバーシップ推定を行う。
+        target model, shadow model ともに、target_datasetは半々にMember (train) Non-Member(test*)になる。
+        *testに使わなくてもよい。
+
+
+    インデックスについて
+        indices : 
+        idx_shuffled : 
+        indices は直接使われない。idx_shuffledの生成に使用される。
+
+        直接、処理に使用されるのは、idx_shuffled
+        idx_shuffled を使ってin out を判断している。
+
+"""
 
 def calc_param(args, plot=False):
 
-    target_dataset = load_dataset(args, 'target')
+    # target_dataset をさらにここでtarget setting ように変更すればいい。
+    
 
     conf_mat = []
     label_mat = []
@@ -33,18 +56,24 @@ def calc_param(args, plot=False):
         rseed = args.exp_idx*1000 + attack_idx
         rseed = 10*rseed
 
-        # データごとに平均と分散を求めるためインデックスの情報が必要
-        # indicesは元のインデックスを並び変えたもの
-        indices = torch.randperm(len(target_dataset), generator=torch.Generator().manual_seed(rseed)).tolist()
+        idx_shuffled = get_index_shuffled(args, rseed)
 
-        # 元のインデックス->シャッフル後のインデックス
-        idx_shuffled = np.zeros(len(target_dataset))
-        for i in range(len(target_dataset)):
-            idx_shuffled[indices[i]] = i
+        if args.truthserum == 'target':
+            truthserum_target_dataset, target_indices = to_TruthSerum_target_dataset(args, attack_idx= 0)
+            target_dataset_proxy = truthserum_target_dataset
+            batchsize = 1
+
+            repro_str = repro_str_for_shadow_model(args, attack_idx)
+            in_idex, out_idx = get_in_index(args, repro_str)
+            
+        else: # untarget
+            target_dataset = load_dataset(args, 'target')
+            target_dataset_proxy = target_dataset
+            batchsize = args.test_batch_size
 
         target_loader = torch.utils.data.DataLoader(
-            target_dataset,
-            batch_size=args.test_batch_size,
+            target_dataset_proxy,
+            batch_size=batchsize,
             shuffle=False
         )
 
@@ -92,12 +121,23 @@ def calc_param(args, plot=False):
 
                 # count は データのインデックスを表すので別にこれでいい. 
                 # シャッフル後のインデックスを使ってmemberかnon-memberかのラベルを作る
-                for i in range(pred.shape[0]):
-                    if idx_shuffled[count] < 5000:
-                        label.append(1)
-                    else:
-                        label.append(0)
-                    count += 1
+                if args.truthserum == 'target':
+                    for i in range(pred.shape[0]):
+                        # if idx_shuffled[target_indices[count]] < 5000:
+                        if target_indices[count] in in_idex:
+                            label.append(1) # in data
+                        elif target_indices[count] in out_idx:
+                            label.append(0) # out data
+                        else:
+                            raise LookupError(f'this index isn\'t contained {target_indices[count]}')
+                        count += 1
+                else: # untarget
+                    for i in range(pred.shape[0]):
+                        if idx_shuffled[count] < 5000:
+                            label.append(1) # in data
+                        else:
+                            label.append(0) # out data
+                        count += 1
 
         # 一つのモデルについての計算は終了
         conf_list = np.concatenate(conf_list)
@@ -107,7 +147,7 @@ def calc_param(args, plot=False):
         conf_mat.append(conf_list)
         label_mat.append(label)
 
-    conf_mat = np.stack(conf_mat)
+    conf_mat = np.stack(conf_mat) # (20, 250, 1) (20, 10000, 1)
     label_mat = np.array(label_mat)
 
     mean_in = []
@@ -115,8 +155,16 @@ def calc_param(args, plot=False):
     std_in = []
     std_out = []
 
+    data_num = conf_mat.shape[1]
+
+    # 追加 visualize data
+    repro_ = repro_str_for_target_model(args, attack_idx=0)
+    GRAGH_DIR = STR_CONF_GRAPH_DIR_NAME(args, repro_)
+    visualize_conf_hist(GRAGH_DIR, conf_mat,label_mat,data_num, 10)
+    
+    # データの数と同様
     # member と non-memebrの平均と分散を計算
-    for i in range(conf_mat.shape[1]):
+    for i in range(data_num):
         tmp_conf = conf_mat[:,i]
         tmp = tmp_conf[label_mat[:,i] == 1]
         tmp = tmp.transpose()
@@ -134,12 +182,16 @@ def calc_param(args, plot=False):
         plt.cla()
         plt.clf()
 
-
     # デバッグと閾値選択のためのコード
     lf_list = []
     label = []
     lf_in = []
     lf_out = []
+
+    # エラー
+    for mi, mo, si, so in zip(mean_in, mean_out, std_in, std_out):
+        if np.isnan(mi) or np.isnan(mo) or np.isnan(si) or np.isnan(so):
+            raise ValueError('ISSUEにある問題により、平均、分散が正しく計算できていません。')
 
     # データごとに処理
     # shadow model の結果を並行して扱う
@@ -198,51 +250,44 @@ def calc_param(args, plot=False):
     idx = np.argmax(acc)
     print(threshold[idx], acc[idx])
 
-    if not args.disable_dp:
-        repro_str = (
-            f"{args.dataset}_{args.network}_{args.optimizer}_{args.lr}_{args.sigma}_"
-            f"{args.max_per_sample_grad_norm}_{args.train_batch_size}_{args.epochs}"
-        )
-    else:
-        repro_str = (
-            f"{args.dataset}_{args.network}_{args.optimizer}_{args.lr}_"
-            f"{args.train_batch_size}_{args.epochs}"
-        )
+    repro_str = repro_str_attack_lira(args)
+
     f = open(DATA_PKL_FILE_NAME(repro_str, args.experiment_strings),'wb')
     # 閾値は精度が高いものを採用する? → ただの数値になる.
     pickle.dump((mean_in, std_in, mean_out, std_out, threshold[idx]), f)
 
 def run_attack(args, plot=False, logger:ExperimentDataLogger = None):
+
     if logger is not None:
         logger.init_for_run_attack()
 
-    if not args.disable_dp:
-        repro_str = (
-            f"{args.dataset}_{args.network}_{args.optimizer}_{args.lr}_{args.sigma}_"
-            f"{args.max_per_sample_grad_norm}_{args.train_batch_size}_{args.epochs}"
-        )
-    else:
-        repro_str = (
-            f"{args.dataset}_{args.network}_{args.optimizer}_{args.lr}_"
-            f"{args.train_batch_size}_{args.epochs}"
-        )
+    repro_str = repro_str_attack_lira(args)
+
     f = open(DATA_PKL_FILE_NAME(repro_str, args.experiment_strings),'rb')
     (mean_in, std_in, mean_out, std_out, threshold) = pickle.load(f)
 
-    target_dataset = load_dataset(args, 'target')
-
     acc_list = []
     for attack_idx in range(args.n_runs):
-    
+
         rseed = args.exp_idx*1000 + attack_idx
-        indices = torch.randperm(len(target_dataset), generator=torch.Generator().manual_seed(rseed)).tolist()
-        idx_shuffled = np.zeros(len(target_dataset))
-        for i in range(len(target_dataset)):
-            idx_shuffled[indices[i]] = i
+
+        idx_shuffled = get_index_shuffled(args, rseed)
+
+        if args.truthserum == 'target':
+            truthserum_target_dataset, target_indices = to_TruthSerum_target_dataset(args, attack_idx= 0)
+            target_dataset_proxy = truthserum_target_dataset
+            batchsize = 1
+
+            repro_str = repro_str_for_target_model(args, attack_idx)
+            in_idex, out_idx = get_in_index(args, repro_str)
+        else: # untarget
+            target_dataset = load_dataset(args, 'target')
+            target_dataset_proxy = target_dataset
+            batchsize = args.test_batch_size
 
         target_loader = torch.utils.data.DataLoader(
-            target_dataset,
-            batch_size=args.test_batch_size,
+            target_dataset_proxy,
+            batch_size=batchsize,
             shuffle=False
         )
 
@@ -283,22 +328,41 @@ def run_attack(args, plot=False, logger:ExperimentDataLogger = None):
         lf_list = []
         label = []
 
+        # len(tmp_conf) (= メンバーシップ推定攻撃の対象となるデータの数。)
+        # 全てのデータの数だけ、判定を行い、正解ラベルを求めている。
         for i in range(len(tmp_conf)):
+
+            # 確信度 (0.01のような値) を取る
             conf = tmp_conf[i]
+
+            # 確信度からin, outの確率(正しくは尤度)を求める. 
             lin = stats.multivariate_normal.pdf(conf,mean=mean_in[i],cov=(std_in[i]+1e-5), allow_singular=True)
             lout = stats.multivariate_normal.pdf(conf,mean=mean_out[i],cov=(std_out[i]+1e-5), allow_singular=True)
+
+            #尤度比検定
             lf =  (lin+1e-5) / (lout+1e-5)
 
+            # 尤度比が閾値を超えたら, in, そうでなければout
             lf_list.append(lf)
             if lf > threshold:
               pred_list.append(1)
             else:
               pred_list.append(0)
 
-            if idx_shuffled[i] < 5000:
-              label.append(1)
+            # 正解ラベルの保存。
+            if args.truthserum == 'target':
+                # if idx_shuffled[target_indices[i]] < 5000:
+                if target_indices[i] in in_idex:
+                    label.append(1) # in data
+                elif target_indices[i] in out_idx:
+                    label.append(0) # out data
+                else:
+                    raise LookupError(f'this index isn\'t contained {target_indices[i]}')
             else:
-              label.append(0)
+                if idx_shuffled[i] < 5000:
+                  label.append(1)
+                else:
+                  label.append(0)
         del model
         torch.cuda.empty_cache()
 
@@ -309,7 +373,7 @@ def run_attack(args, plot=False, logger:ExperimentDataLogger = None):
             plt.hist(lf_list[label==1], label='in', bins=50, alpha=0.5)
             plt.hist(lf_list[label==0], label='out', bins=50, alpha=0.5)
             plt.legend()
-            plt.savefig("lamda_hist2_in_out.png")
+            plt.savefig("likelihood_list_distribution.png")
             plt.cla()
             plt.clf()
 
@@ -345,18 +409,37 @@ if __name__ == "__main__":
     # args.model_dir = 'Backdoor_5000'
     # args.experiment_strings = 'backdoor'
 
-    # args.poisoning_rate = 1.0     # なくても動くはず
-    # args.is_backdoored = True     # なくても動くはず
-    # args.poison_num = 5000        # なくても動くはず
-    # args.is_save_each_epoch=False # なくても動くはず
-
     #clean
+    args.truthserum = 'untarget'
     args.model_dir = 'clean'
-
     args.epochs = 100
-    ###
     args.n_runs = 20
-    
+
+
+    # テスト用
+    # args.truthserum = 'target'
+    # args.replicate_times = 4
+    # args.model_dir = 'TEST_target'
+    # args.epochs = 3
+    # args.n_runs=20
+
+    # TS target 
+    # args.truthserum = 'target'
+    # args.replicate_times = 4
+    # args.model_dir = 'BACKDOOR_target'
+    # args.epochs = 100
+    # args.n_runs=20
+
+    # TS target (軽量テスト用)
+    # args.truthserum = 'target'
+    # args.replicate_times = 4
+    # args.model_dir = 'BACKDOOR_target_TEST'
+    # args.epochs = 10
+    # args.n_runs=20
+
+    # shadow model を使用して準備
     calc_param(args, plot=True)
+
+    # target model を使用してMIA
     args.n_runs = 1
-    acc_list = run_attack(args, plot=True,logger=myEDLogger)
+    acc_list = run_attack(args, plot=True, logger=myEDLogger)
