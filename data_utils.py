@@ -300,12 +300,13 @@ def Membership_info(args, fixed_generator:torch.Generator):
     target_dataset_proxy = train_dataset_proxy
 
     in_data_idices = list()
-    for idx in range(12500):
-        in_data_idices.append(MIA_target_in_dataset_reidx.get_original_data_idx(idx))
+    for idx in range(25000):
+        in_data_idices.append(orifinal_data_train_reidx.get_original_data_idx(idx))
 
     out_data_idices = list()
-    for idx in range(12500):
-        out_data_idices.append(MIA_target_out_dataset_reidx.get_original_data_idx(idx))
+    for idx in range(25000):
+        out_data_idices.append(original_data_train_out_reidx.get_original_data_idx(idx))
             
     # in_data_idices, out_data_idices, train_dataset_proxy, batchsize のみ必要
+    # in_data_idices, out_data_idices は TruthSerum target settings で必要
     return train_dataset_proxy, in_data_idices, out_data_idices

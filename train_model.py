@@ -214,6 +214,7 @@ if __name__ == "__main__":
     args.is_backdoored = True
     args.poison_num = 12500
     args.is_save_each_epoch= False
+    SHADOW_MODEL_NUM = 128
 
     # clean 
     # args.is_backdoored = False
@@ -233,10 +234,10 @@ if __name__ == "__main__":
     print("is_save_each_epoch : ", args.is_save_each_epoch)
     print("target : n_runs : ", 1)
     print("epochs : ", args.epochs)
-    print("shadow model : n_runs : ", args.n_runs)
+    print("shadow model : n_runs : ", SHADOW_MODEL_NUM)
     print("="*100)
 
     args.n_runs=1
     train_target(args, EXPERIMENT_LOGGER)
-    args.n_runs=20
+    args.n_runs=SHADOW_MODEL_NUM
     train_shadow(args, EXPERIMENT_LOGGER)

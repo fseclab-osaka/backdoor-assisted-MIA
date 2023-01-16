@@ -142,7 +142,7 @@ def calc_param(args, plot=False):
         conf_mat.append(conf_list)
         label_mat.append(label)
 
-    conf_mat = np.stack(conf_mat) # (20, 250, 1) (20, 10000, 1)
+    conf_mat = np.stack(conf_mat) # (20, 250, 1) (20, 10000, 1), Debug : (args.n_runs, 250 * replicatenum, 1)ならおｋ
     label_mat = np.array(label_mat)
 
     mean_in = []
@@ -437,10 +437,10 @@ if __name__ == "__main__":
     # args.experiment_strings = 'backdoor'
 
     #clean
-    args.truthserum = 'untarget'
-    args.model_dir = 'clean'
-    args.epochs = 100
-    args.n_runs = 20
+    # args.truthserum = 'untarget'
+    # args.model_dir = 'clean'
+    # args.epochs = 100
+    # args.n_runs = 20
 
 
     # テスト用
@@ -463,6 +463,15 @@ if __name__ == "__main__":
     # args.model_dir = 'BACKDOOR_target_TEST'
     # args.epochs = 10
     # args.n_runs=20
+    
+    # Target 2023-01-17
+    args.truthserum = 'target'
+    args.replicate_times = 4
+    args.model_dir = 'Target'
+    args.is_backdoored = True
+    args.poison_num = 0 # Target でも必要. Target は0でよい。(学習に用いなかったデータを全てnon-Memberの'候補'として用いれるように.)
+    args.n_runs=20
+
 
     # shadow model を使用して準備
     calc_param(args, plot=True)
