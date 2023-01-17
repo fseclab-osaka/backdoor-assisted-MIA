@@ -106,3 +106,10 @@ BBM.train_poison(2つ) を適当なバックドア生成関数にしてくださ
 ```
 ちなみに現状動いているBBM.train_poisonやBBM.test_poisonではDatasetを引数として、
 バックドア済みDatasetを返します。このインタフェースに合わせれば動くかと思います.
+
+# attack_lira.py(メンバーシップ推定攻撃)について
+argsを正しく設定できれば使用できます。
+args.poisonnum は targetで0, untargetで12500, clean only で 0に指定してください.
+
+# 2023-01-17
+- train_model.py をshadow modelのみの学習に変更

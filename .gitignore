@@ -47,3 +47,11 @@ CleanOnly/*
 2023-01-17_Untarget12500.log
 2023-01-17_Target_250_additional.log
 likelihood_list_distribution.png
+
+2023-01-17_stash/*
+2023-01-17_stash/config.yaml
+
+train_model copy.py
+TEST_2023_01_17/*
+
+TEST2_2023_01_17*/*

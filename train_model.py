@@ -21,6 +21,8 @@ from defined_strings import *
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
+from typing import Tuple
+
 def target_index_save(args,idx:list,  repro_str, mode:str = 'w', supplement_str:str = ''):
     with open(STR_INDEX_FILE_NAME(args,repro_str), mode=mode) as wf:
         if not supplement_str == '':
@@ -33,140 +35,112 @@ def save_target_in_out_index(args,idx:list,  repro_str, mode:str = 'w', suppleme
             wf.write(supplement_str + '\n')
         wf.write(str(idx) + '\n')
     
-
-def train_target(args, logger:ExperimentDataLogger):
-
-    # データの源
-    original_train_dataset = load_dataset(args, 'raw_train')
-    test_dataset = load_dataset(args, 'target')
-
-    c, h, w = get_WHC(original_train_dataset) # 下記のBBM クラスに渡すため
-    BBM = BadNetBackdoorManager(args=args, channels=c,width=w,height=h,random_seed = 10)
-
-    # テスト用のデータセットの作成(clean, backdoor) サイズは25000
-    test_loader, poison_one_test_loader = build_test_dataloaders(args, test_dataset, BBM)
-
-    run_results = []
-    total_duration = 0
-
-    for attack_idx in range(args.n_runs):
-        
-        # repro_strの作成
-        repro_str = repro_str_for_target_model(args, attack_idx)
-        
-        # モデルがすでに学習済みならパス
-        if os.path.exists(STR_MODEL_FILE_NAME(args, repro_str)):
-            print(f"{STR_MODEL_FILE_NAME(args, repro_str)} exist")
-            continue
-
-        # シード固定
+def seed_generator(args, attack_idx:int, mode = 'target') -> int:
+    if mode == 'target':
+        return args.exp_idx*1000 + attack_idx
+    elif mode == 'shadow':
         rseed = args.exp_idx*1000 + attack_idx
-        fixed_generator = torch.Generator().manual_seed(rseed)
+        rseed = 10*rseed
+        return rseed
+    else:
+        raise LookupError('argument mode is wrong.')
+def _get_types(model_type:str) -> Tuple[str, str]:
+    # 固定される変数の決定
+    if model_type == 'target':
+        SHADOW_TYPE = ''
+        SEED_MODEL_TYPE = 'target'
+    elif model_type == 'shadow':
+        SHADOW_TYPE = 'shadow'
+        SEED_MODEL_TYPE = 'shadow'
+    else:
+        raise ValueError('model_type is wrong.')
+    return SHADOW_TYPE, SEED_MODEL_TYPE
 
-        # 未処理(poisoningやbackdoorを行っていない)データセットに分ける。for bdはbackdoorのための。
-        clean_train_dataset, dataset_for_bd, target_in_idx, target_out_idx = make_clean_unprocesseced_backdoor_for_train(original_train_dataset, fixed_generator)
-        save_target_in_out_index(args, target_in_idx,  repro_str, 'w', supplement_str='in')
-        save_target_in_out_index(args, target_out_idx,  repro_str, 'a', supplement_str='out')
-        # TruthSerumのtarget untargetで引数を変えて、データセットとインデックスを求める。
-        # インデックスは50000に対するインデックス。（untargetではcifar10の学習テストを混ぜているのでインデックスが意味をなさない。)
-        if args.is_backdoored:
+def _confirm_directory(args) -> None:
+    """ ファイルの存在を確認 """
+    os.makedirs(f"{args.model_dir}", exist_ok=True)
+    os.makedirs(f"{args.model_dir}/model", exist_ok=True)
 
-            # データ, インデックスを作成
-            if args.truthserum == 'target':
-                backdoored_dataset, idx, _, _ = make_backdoored_dataset(args, BBM)
-                print('TruthSerum Target IDX: ', idx)
-            elif args.truthserum == 'untarget':
-                backdoored_dataset, idx, _, _ = make_backdoored_dataset(args, BBM, dataset_for_bd, fixed_generator)
+def _print_experiment_settings(args, SHADOW_MODEL_NUM:int, TARGET_NUM:int) -> None:
+    """ 実験設定出力 """
+    print("="*100)
+    print("model_dir : ", args.model_dir)
+    print("poisoning_rate : ", args.poisoning_rate)
+    print("is_backdoored : ", args.is_backdoored)
+    print("poison_num : ", args.poison_num )
+    print("is_save_each_epoch : ", args.is_save_each_epoch)
+    print("target : n_runs : ", TARGET_NUM)
+    print("epochs : ", args.epochs)
+    print("shadow model : n_runs : ", SHADOW_MODEL_NUM)
+    print("="*100)
 
-            # target_index_save(args, idx,  repro_str, 'w', supplement_str='target model')
-            target_index_save(args, idx,  repro_str, 'w', supplement_str='')
+########################################################################################################################
 
-            print("BACKDOOR NUM : ", len(backdoored_dataset))
-            print("CLEAN NUM : " , len(clean_train_dataset))
+def train_shadow(args, logger:ExperimentDataLogger, model_type = 'target'):
 
-            train_dataset_proxy = torch.utils.data.ConcatDataset([backdoored_dataset, clean_train_dataset])
-        else:
-            train_dataset_proxy = clean_train_dataset # 25000
+    # 固定される変数の決定
+    SHADOW_TYPE, SEED_MODEL_TYPE = _get_types(model_type)
 
-        # データローダーにする
-        train_loader = torch.utils.data.DataLoader(
-            train_dataset_proxy,
-            batch_size=args.train_batch_size,
-            shuffle=True    # 攪拌するため かくはんしないとうまくいかない
-        )
-
-        # epoch分学習
-        if args.is_backdoored:
-            epsilon, elapsed_time = train_loop(args, train_loader, attack_idx=attack_idx, test_loader=test_loader,poison_one_test_loader=poison_one_test_loader, edlogger=logger)
-        else:
-            epsilon, elapsed_time = train_loop(args, train_loader, attack_idx=attack_idx, test_loader=test_loader, edlogger=logger)
-
-        # 精度確認
-        test_acc, test_loss = test(args, test_loader, attack_idx=attack_idx)
-
-        if args.is_backdoored:
-            poison_o_correct, poison_o_loss = test(args, poison_one_test_loader, attack_idx=attack_idx)
-        
-        # 時間の処理
-        total_duration += elapsed_time
-
-        # 結果をまとめる
-        run_results.append((test_acc, epsilon, elapsed_time))
-
-        # 精度出力
-        print('#', attack_idx,'test_acc : ', test_acc, 'test_loss : ', test_loss, 'epsilon : ', epsilon, 'total_duration:', total_duration)
-        if args.is_backdoored:
-            print('#p_one', poison_o_correct, f'({poison_o_loss})')
-
-        # repro_strの作成
-        repro_str = repro_str_for_target_model(args, attack_idx)
-
-        # 結果の保存
-        torch.save(run_results, f"result/run_results_{repro_str}.pt")
-
-
-def train_shadow(args, logger:ExperimentDataLogger):
-
+    # 源となるデータセット
     original_train_dataset = load_dataset(args, 'raw_train')
-    # target_dataset = load_dataset(args, 'target')
     test_dataset = load_dataset(args, 'target')
 
+    # Backdoorを管理するクラスの作成
     c, h, w = get_WHC(original_train_dataset)
     BBM = BadNetBackdoorManager(args=args, channels=c,width=w,height=h,random_seed = 10)
 
+    # テストDataLoaderの作成
     test_loader, poison_one_test_loader = build_test_dataloaders(args, test_dataset, BBM)
 
+    # 変数の準備
     run_results = []
     total_duration = 0
 
+    # shadow modelの数だけ学習を繰り返す. 
     for attack_idx in range(args.n_runs):
 
+        # repro strの作成
         repro_str = repro_str_for_shadow_model(args,attack_idx)
 
+        # 今から学習しようとしているモデルがすでに存在していればpass
         if os.path.exists(STR_MODEL_FILE_NAME(args, repro_str)):
             print(f"{STR_MODEL_FILE_NAME(args, repro_str)} exist")
             continue
-
-        rseed = args.exp_idx*1000 + attack_idx
-        rseed = 10*rseed
+        
+        # シード生成
+        rseed = seed_generator(args, attack_idx, SEED_MODEL_TYPE)
         fixed_generator = torch.Generator().manual_seed(rseed)
+
+        # データセットの分割 (25000, 25000) : target, clean only
         clean_train_dataset, dataset_for_bd, target_in_idx, target_out_idx = make_clean_unprocesseced_backdoor_for_train(original_train_dataset, fixed_generator)
         save_target_in_out_index(args, target_in_idx,  repro_str, 'w', supplement_str='in')
         save_target_in_out_index(args, target_out_idx,  repro_str, 'a', supplement_str='out')
 
+        # 学習データを構築
         if args.is_backdoored:
-            if args.truthserum == 'target':
-                backdoored_dataset, idx, _, _ = make_backdoored_dataset(args, BBM)
-                print('TruthSerum Target IDX: ', idx)
-            elif args.truthserum == 'untarget':
-                backdoored_dataset, idx, _, _ = make_backdoored_dataset(args, BBM, dataset_for_bd, fixed_generator)
-
-            target_index_save(args, idx,  repro_str, 'w', supplement_str='shadow model')
             
-            print("BACKDOOR NUM : ", len(backdoored_dataset))
-            print("CLEAN NUM : ", len(clean_train_dataset))
+            # target : backdoored_datasetは選ばれた250個のデータ
+            if args.truthserum == 'target':
+                backdoored_dataset, idx, _, _, _, _ = make_backdoored_dataset(args, BBM)
+                print('TruthSerum Target IDX: ', idx)
+                target_index_save(args, idx,  repro_str, 'w', supplement_str='shadow model')
+                clean_in_dataset = clean_train_dataset # 25000
 
-            train_dataset_proxy = torch.utils.data.ConcatDataset([backdoored_dataset, clean_train_dataset])
+            # untarget : backdoored_datasetはPOISON_NUM個のデータ
+            # untarget は異なる生成方式?
+            elif args.truthserum == 'untarget':
+                backdoored_dataset, backdoored_dataset_idx, in_dataset, _, out_dataset, _ = make_backdoored_dataset(args, BBM, dataset_for_bd, fixed_generator)
+
+                # データインデックスの保存
+                target_index_save(args, backdoored_dataset_idx,  repro_str, 'w', supplement_str='shadow model')
+                clean_in_dataset = in_dataset # 12500
+
+            # clean, backdoorの数を出力
+            print("CLEAN NUM : ", len(clean_in_dataset))
+            print("BACKDOOR NUM : ", len(backdoored_dataset))
+
+            # train_dataset_proxy(共通インタフェースへ)
+            train_dataset_proxy = torch.utils.data.ConcatDataset([clean_in_dataset, backdoored_dataset])
         else:
             train_dataset_proxy = clean_train_dataset # 25000
 
@@ -178,24 +152,27 @@ def train_shadow(args, logger:ExperimentDataLogger):
 
         # 学習を行う
         if args.is_backdoored:
-            epsilon, elapsed_time = train_loop(args, train_loader, attack_idx=attack_idx, test_loader=test_loader,poison_one_test_loader=poison_one_test_loader,shadow_type='shadow', edlogger=logger)
+            epsilon, elapsed_time = train_loop(args, train_loader, attack_idx=attack_idx, test_loader=test_loader,poison_one_test_loader=poison_one_test_loader,shadow_type=SHADOW_TYPE, edlogger=logger)
         else:
-            epsilon, elapsed_time = train_loop(args, train_loader, attack_idx=attack_idx, test_loader=test_loader,shadow_type='shadow', edlogger=logger)
+            epsilon, elapsed_time = train_loop(args, train_loader, attack_idx=attack_idx, test_loader=test_loader,shadow_type=SHADOW_TYPE, edlogger=logger)
 
         # TestAccuracy / ASR を調べる
-        test_acc, test_loss = test(args, test_loader, attack_idx=attack_idx, shadow_type='shadow')
+        test_acc, test_loss = test(args, test_loader, attack_idx=attack_idx, shadow_type=SHADOW_TYPE)
         if args.is_backdoored:
-            poison_o_correct, poison_o_loss = test(args, poison_one_test_loader, attack_idx=attack_idx, shadow_type='shadow')
+            poison_o_correct, poison_o_loss = test(args, poison_one_test_loader, attack_idx=attack_idx, shadow_type=SHADOW_TYPE)
 
+        # 時間を測定
         total_duration += elapsed_time
         run_results.append((test_acc, epsilon, elapsed_time))
 
+        # 最終結果を出力
         print('#', attack_idx,'test_acc : ', test_acc, 'test_loss : ', test_loss, 'epsilon : ', epsilon, 'total_duration:', total_duration)
         if args.is_backdoored:
             print('#p_one', poison_o_correct, f'({poison_o_loss})')
 
+        # 結果を保存しておく.
         repro_str = repro_str_for_shadow_model(args,attack_idx)
-        torch.save(run_results, f"result/run_results_{repro_str}.pt")
+        torch.save(run_results, STR_RUN_RESULT_FILE_NAME(repro_str))
 
 if __name__ == "__main__":
     EXPERIMENT_LOGGER = ExperimentDataLogger()
@@ -208,36 +185,52 @@ if __name__ == "__main__":
     # args.is_backdoored = True
 
     # Untarget
-    args.truthserum = 'untarget'
-    args.model_dir = 'Untarget_12500'
-    args.poisoning_rate = 1.0
-    args.is_backdoored = True
-    args.poison_num = 12500
-    args.is_save_each_epoch= False
-    SHADOW_MODEL_NUM = 128
+    # args.truthserum = 'untarget'
+    # args.model_dir = 'Untarget_12500'
+    # args.poisoning_rate = 1.0
+    # args.is_backdoored = True
+    # args.poison_num = 12500
+    # args.is_save_each_epoch= False
+    # SHADOW_MODEL_NUM = 128
 
     # clean 
     # args.is_backdoored = False
     # args.truthserum = 'untarget'
     # args.model_dir = 'CleanOnly'
     
-    os.makedirs(f"{args.model_dir}", exist_ok=True)
-    os.makedirs(f"{args.model_dir}/model", exist_ok=True)
-    
     args.epochs = 100
 
-    print("="*100)
-    print("model_dir : ", args.model_dir)
-    print("poisoning_rate : ", args.poisoning_rate)
-    print("is_backdoored : ", args.is_backdoored)
-    print("poison_num : ", args.poison_num )
-    print("is_save_each_epoch : ", args.is_save_each_epoch)
-    print("target : n_runs : ", 1)
-    print("epochs : ", args.epochs)
-    print("shadow model : n_runs : ", SHADOW_MODEL_NUM)
-    print("="*100)
+    ##### 下記でデバッグしました. #####
+    # TEST(target) ok
+    # args.truthserum = 'target'
+    # args.replicate_times = 4
+    # args.model_dir = 'TEST2_2023_01_17_target'
+    # args.is_backdoored = True
+    # args.epochs = 2
+    # SHADOW_MODEL_NUM = 3
 
-    args.n_runs=1
-    train_target(args, EXPERIMENT_LOGGER)
+    # TEST(untarget) 
+    # args.truthserum = 'untarget'
+    # args.model_dir = 'TEST2_2023_01_17_untarget'
+    # args.poisoning_rate = 1.0
+    # args.is_backdoored = True
+    # args.poison_num = 12500
+    # args.is_save_each_epoch= False
+    # args.epochs = 2
+    # SHADOW_MODEL_NUM = 3
+
+    # TEST(clean) 
+    args.is_backdoored = False
+    args.truthserum = ''
+    args.model_dir = 'TEST2_2023_01_17_clean'
+    args.epochs = 2
+    SHADOW_MODEL_NUM = 3
+    
+    # ディレクトリの存在確認や実験設定の出力(準備)
+    _confirm_directory(args)
+    _print_experiment_settings(args, SHADOW_MODEL_NUM, None)
+
+    # args.n_runs=1
+    # train_shadow(args, EXPERIMENT_LOGGER, model_type='target') # targetの学習はこのように行うことが可能
     args.n_runs=SHADOW_MODEL_NUM
-    train_shadow(args, EXPERIMENT_LOGGER)
+    train_shadow(args, EXPERIMENT_LOGGER, model_type='shadow')

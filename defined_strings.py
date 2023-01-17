@@ -4,6 +4,7 @@ STR_INDEX_FILE_NAME :str = lambda args, repro_str : f"{args.model_dir}/{repro_st
 STR_IN_OUT_INDEX_FILE_NAME :str = lambda args, repro_str : f"{args.model_dir}/{repro_str}_in_out_index.txt"
 
 STR_CONF_GRAPH_DIR_NAME :str = lambda args, target_repro_str : f"{args.model_dir}/{target_repro_str}"
+STR_RUN_RESULT_FILE_NAME : str = lambda repro_str : f"result/run_results_{repro_str}.pt"
 
 #### repro string ####
 STR_REPRO_DP_SHADOW :str = lambda args,shadow_type,attack_idx : (

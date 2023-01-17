@@ -91,7 +91,7 @@ def build_test_dataloaders(args,test_dataset:Dataset, BBM:BadNetBackdoorManager 
         )
         return test_loader, poison_one_test_loader
     
-def make_backdoored_dataset(args, BBM:BadNetBackdoorManager, dataset_for_bd:Dataset = None, fixed_generator:torch.Generator = None) -> Dataset:
+def make_backdoored_dataset(args, BBM:BadNetBackdoorManager, dataset_for_bd:Dataset = None, fixed_generator:torch.Generator = None) -> Tuple[Dataset,list,Dataset,list,Dataset,list]:
     """
         処理 : 
             TruthSerum における target と untarget に対応する設定で
@@ -133,24 +133,34 @@ def make_backdoored_dataset(args, BBM:BadNetBackdoorManager, dataset_for_bd:Data
         
         # TEST_dataloader_movement_checker(args,truthserum_target_backdoored_dataset ) # テスト(大量に画像を生成してテストする。)
 
-        return truthserum_target_backdoored_dataset, target_idx, None, None
+        return truthserum_target_backdoored_dataset, target_idx, None, None, None, None
     
     elif args.truthserum == 'untarget':
-
-        # 対象のデータセットすべてに攻撃
-        POISON_NUM = args.poison_num
-        separator_bddata =  [POISON_NUM, len(dataset_for_bd) - POISON_NUM]
-        dataset_for_bd_tmp, discard_dataset =  torch.utils.data.random_split(dataset=dataset_for_bd, 
-                lengths=separator_bddata, generator=fixed_generator)
+        # 2023-01-17: ミーティングより改変
+        # attack_lira.pyも改変必要?
+        # test : 12500, 12500, 25000
         
-        untarget_idx = dataset_for_bd_tmp.indices
+        POISON_NUM = args.poison_num
+        TRAIN_IN_NUM = 12500
+        # POISON_NUM = 12500
 
-        discard_dataset_idx = discard_dataset.indices
+        original_dataset = load_dataset(args, 'raw_train')
+
+        dataset_for_clean, dataset_for_bd =  torch.utils.data.random_split(dataset=original_dataset, 
+                lengths= [len(original_dataset) - POISON_NUM, POISON_NUM], generator=fixed_generator)
+        
+        truthserum_untarget_backdoored_dataset_idx = dataset_for_bd.indices
 
         args.poisoning_rate = 1.0
-        truthserum_untarget_backdoored_dataset = BBM.train_poison(args=args,dataset=dataset_for_bd_tmp)
+        truthserum_untarget_backdoored_dataset = BBM.train_poison(args=args,dataset=dataset_for_bd)
+        
+        in_dataset, out_dataset = torch.utils.data.random_split(dataset=dataset_for_clean, 
+                lengths= [TRAIN_IN_NUM, len(dataset_for_clean) - TRAIN_IN_NUM], generator=fixed_generator)
+        
+        in_dataset_idx = in_dataset.indices
+        out_dataset_idx = out_dataset.indices
 
-        return truthserum_untarget_backdoored_dataset, untarget_idx, discard_dataset, discard_dataset_idx
+        return truthserum_untarget_backdoored_dataset, truthserum_untarget_backdoored_dataset_idx, in_dataset, in_dataset_idx, out_dataset, out_dataset_idx
 
 def TEST_dataloader_movement_checker(args,truthserum_target_backdoored_dataset:Dataset):
     """
