@@ -16,6 +16,7 @@ from experiment_data_logger import ExperimentDataLogger
 # これよくない
 from common import load_model, train_loop, test, load_dataset
 from data_utils import get_WHC, make_clean_unprocesseced_backdoor_for_train, build_test_dataloaders, make_backdoored_dataset
+from data_seed import seed_generator
 
 from defined_strings import *
 import hydra
@@ -35,15 +36,6 @@ def save_target_in_out_index(args,idx:list,  repro_str, mode:str = 'w', suppleme
             wf.write(supplement_str + '\n')
         wf.write(str(idx) + '\n')
     
-def seed_generator(args, attack_idx:int, mode = 'target') -> int:
-    if mode == 'target':
-        return args.exp_idx*1000 + attack_idx
-    elif mode == 'shadow':
-        rseed = args.exp_idx*1000 + attack_idx
-        rseed = 10*rseed
-        return rseed
-    else:
-        raise LookupError('argument mode is wrong.')
 def _get_types(model_type:str) -> Tuple[str, str]:
     # 固定される変数の決定
     if model_type == 'target':
@@ -58,6 +50,9 @@ def _get_types(model_type:str) -> Tuple[str, str]:
 
 def _confirm_directory(args) -> None:
     """ ファイルの存在を確認 """
+    if args.train_mode == 'fine_tune':
+        os.makedirs(f"{args.fine_tune_dir}", exist_ok=True)
+        os.makedirs(f"{args.fine_tune_dir}/model", exist_ok=True)
     os.makedirs(f"{args.model_dir}", exist_ok=True)
     os.makedirs(f"{args.model_dir}/model", exist_ok=True)
 
@@ -77,6 +72,12 @@ def _print_experiment_settings(args, SHADOW_MODEL_NUM:int, TARGET_NUM:int) -> No
 ########################################################################################################################
 
 def train_shadow(args, logger:ExperimentDataLogger, model_type = 'target'):
+    """
+        train_mode : overall or fine_tune
+            overall   : 一括学習
+            fine_tune : 転移学習方式
+                note : fine_tuneで実行される場合は, 学習済みモデルが必要です.
+    """
 
     # 固定される変数の決定
     SHADOW_TYPE, SEED_MODEL_TYPE = _get_types(model_type)
@@ -85,6 +86,7 @@ def train_shadow(args, logger:ExperimentDataLogger, model_type = 'target'):
     original_train_dataset = load_dataset(args, 'raw_train')
     test_dataset = load_dataset(args, 'target')
 
+    # TODO : ashizawa-san : 下記2行は必要なければコメントアウトしてもらって大丈夫です.
     # Backdoorを管理するクラスの作成
     c, h, w = get_WHC(original_train_dataset)
     BBM = BadNetBackdoorManager(args=args, channels=c,width=w,height=h,random_seed = 10)
@@ -99,19 +101,27 @@ def train_shadow(args, logger:ExperimentDataLogger, model_type = 'target'):
     # shadow modelの数だけ学習を繰り返す. 
     for attack_idx in range(args.n_runs):
 
+        #################################### データセットの選択 ここから ####################################
+
         # repro strの作成
         repro_str = repro_str_for_shadow_model(args,attack_idx)
 
         # 今から学習しようとしているモデルがすでに存在していればpass
-        if os.path.exists(STR_MODEL_FILE_NAME(args, repro_str)):
-            print(f"{STR_MODEL_FILE_NAME(args, repro_str)} exist")
-            continue
+        if args.train_mode == 'fine_tune':
+            if os.path.exists(STR_MODEL_FINE_NAME_FINE_TUNE(args, repro_str)):
+                print(f"{STR_MODEL_FINE_NAME_FINE_TUNE(args, repro_str)} exist")
+                continue
+        elif args.train_mode == 'overall':
+            if os.path.exists(STR_MODEL_FILE_NAME(args, repro_str)):
+                print(f"{STR_MODEL_FILE_NAME(args, repro_str)} exist")
+                continue
+        else:
+            raise ValueError(f'train_mode is wrong. {args.train_mode}')
         
         # シード生成
         rseed = seed_generator(args, attack_idx, SEED_MODEL_TYPE)
         fixed_generator = torch.Generator().manual_seed(rseed)
-
-        # データセットの分割 (25000, 25000) : target, clean only
+        
         clean_train_dataset, dataset_for_bd, target_in_idx, target_out_idx = make_clean_unprocesseced_backdoor_for_train(original_train_dataset, fixed_generator)
         save_target_in_out_index(args, target_in_idx,  repro_str, 'w', supplement_str='in')
         save_target_in_out_index(args, target_out_idx,  repro_str, 'a', supplement_str='out')
@@ -121,14 +131,16 @@ def train_shadow(args, logger:ExperimentDataLogger, model_type = 'target'):
             
             # target : backdoored_datasetは選ばれた250個のデータ
             if args.truthserum == 'target':
+
                 backdoored_dataset, idx, _, _, _, _ = make_backdoored_dataset(args, BBM)
                 print('TruthSerum Target IDX: ', idx)
                 target_index_save(args, idx,  repro_str, 'w', supplement_str='shadow model')
                 clean_in_dataset = clean_train_dataset # 25000
 
             # untarget : backdoored_datasetはPOISON_NUM個のデータ
-            # untarget は異なる生成方式?
             elif args.truthserum == 'untarget':
+
+                # *untarget は異なる生成方式を用いる.
                 backdoored_dataset, backdoored_dataset_idx, in_dataset, _, out_dataset, _ = make_backdoored_dataset(args, BBM, dataset_for_bd, fixed_generator)
 
                 # データインデックスの保存
@@ -139,16 +151,28 @@ def train_shadow(args, logger:ExperimentDataLogger, model_type = 'target'):
             print("CLEAN NUM : ", len(clean_in_dataset))
             print("BACKDOOR NUM : ", len(backdoored_dataset))
 
-            # train_dataset_proxy(共通インタフェースへ)
-            train_dataset_proxy = torch.utils.data.ConcatDataset([clean_in_dataset, backdoored_dataset])
+            if args.train_mode == 'fine_tune':
+                train_dataset_proxy = backdoored_dataset
+            elif args.train_mode == 'overall':
+               train_dataset_proxy = torch.utils.data.ConcatDataset([clean_in_dataset, backdoored_dataset])
+            else:
+                raise ValueError(f'train_mode is wrong. {args.train_mode}')
+
         else:
-            train_dataset_proxy = clean_train_dataset # 25000
+            if args.truthserum == 'target':
+                train_dataset_proxy = clean_train_dataset # 25000
+            elif args.truthserum == 'untarget':
+                _, _, in_dataset, _, _, _ = make_backdoored_dataset(args, BBM, dataset_for_bd, fixed_generator)
+                train_dataset_proxy = in_dataset # 25000
+            print("CLEAN NUM : ", len(train_dataset_proxy))
 
         train_loader = torch.utils.data.DataLoader(
             train_dataset_proxy,
             batch_size=args.train_batch_size,
             shuffle=True    # 攪拌するため
         )
+
+        #################################### データセットの選択 ここまで ####################################
 
         # 学習を行う
         if args.is_backdoored:
@@ -178,11 +202,13 @@ if __name__ == "__main__":
     EXPERIMENT_LOGGER = ExperimentDataLogger()
     args = util.get_arg()
 
-    # Target 
+    # Target 2023-01-17実行
     # args.truthserum = 'target'
     # args.replicate_times = 4
-    # args.model_dir = 'Target'
+    # args.model_dir = f'Target_r{args.replicate_times}'
     # args.is_backdoored = True
+    # SHADOW_MODEL_NUM = 128
+    # args.epochs = 100
 
     # Untarget
     # args.truthserum = 'untarget'
@@ -197,8 +223,9 @@ if __name__ == "__main__":
     # args.is_backdoored = False
     # args.truthserum = 'untarget'
     # args.model_dir = 'CleanOnly'
+    # SHADOW_MODEL_NUM = 128
     
-    args.epochs = 100
+    # args.epochs = 100
 
     ##### 下記でデバッグしました. #####
     # TEST(target) ok
@@ -220,12 +247,51 @@ if __name__ == "__main__":
     # SHADOW_MODEL_NUM = 3
 
     # TEST(clean) 
-    args.is_backdoored = False
-    args.truthserum = ''
-    args.model_dir = 'TEST2_2023_01_17_clean'
-    args.epochs = 2
-    SHADOW_MODEL_NUM = 3
+    # args.is_backdoored = False
+    # args.truthserum = ''
+    # args.model_dir = 'TEST2_2023_01_17_clean'
+    # args.epochs = 2
+    # SHADOW_MODEL_NUM = 3
+
+    # TEST (clean-target) OK Debug 済み
+    # args.is_backdoored = False
+    # args.truthserum = 'target'
+    # args.model_dir = 'TEST_target_clean_2023-01-18'
+    # args.epochs = 20
+    # SHADOW_MODEL_NUM = 2
+
+    # TEST (clean-untarget) OK Debug 済み
+    # args.is_backdoored = False
+    # args.truthserum = 'untarget'
+    # args.model_dir = 'TEST_untarget_clean_2023-01-18'
+    # args.epochs = 2
+    # SHADOW_MODEL_NUM = 3
     
+    # TODO : ashizawa-san 
+    # args.train_mode = 'fine_tune' # or overall
+    # args.fine_tune_dir = 'TEST_target_cleafine-tuned_dir'   # ここで fine-tune したモデルの保存先を指定してください.
+
+    # fine-tune 使用例
+    # TEST (clean-target) 
+    # args.is_backdoored = True                               # 今から fine tune する際の設定で大丈夫です. 
+    # args.replicate_times = 4
+    # args.truthserum = 'target'                              # clean model の作成方法はtargetにしていることが前提です。(untargetでは動くと思いますが実験結果が意味のないものになります.)
+    # args.model_dir = 'TEST_target_clean_2023-01-18'         # clean model の格納先
+    # args.epochs = 20
+    # SHADOW_MODEL_NUM = 2
+    # args.train_mode = 'fine_tune'                           # or overall
+    # args.fine_tune_dir = 'TEST_target_cleafine-tuned_dir'   # fine tune 後のモデルの保存先
+
+    args.is_backdoored = True                               # 今から fine tune する際の設定で大丈夫です. 
+    args.replicate_times = 4
+    args.truthserum = 'target'                              # clean model の作成方法はtargetにしていることが前提です。(untargetでは動くと思いますが実験結果が意味のないものになります.)
+    args.model_dir = 'TEST_target_clean_2023-01-18'         # clean model の格納先
+    args.epochs = 20
+    SHADOW_MODEL_NUM = 2
+    args.train_mode = 'fine_tune'                           # or overall
+    args.fine_tune_dir = 'TEST_target_cleafine-tuned_dir_target4'   # fine tune 後のモデルの保存先
+    args.finetune_epochs = 10                               # fine tune 時のエポック数
+
     # ディレクトリの存在確認や実験設定の出力(準備)
     _confirm_directory(args)
     _print_experiment_settings(args, SHADOW_MODEL_NUM, None)

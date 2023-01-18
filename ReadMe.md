@@ -98,6 +98,7 @@ data augmentation: cifar shift+flip, mnist shift
 train_shadow
 - build_test_dataloaders関数
 ```
+BBM の定義部分を消してください. 
 BBM.test_poison を適当なバックドア生成関数にしてください
 ```
 - make_backdoored_dataset関数
@@ -113,3 +114,34 @@ args.poisonnum は targetで0, untargetで12500, clean only で 0に指定して
 
 # 2023-01-17
 - train_model.py をshadow modelのみの学習に変更
+
+# 2023-01-18
+- attack_lira 動作確認 (MIAが本当にできているかは不明)
+- fine tune 実装
+- fine tune load 後精度確認(=正しくパラメータをロードできていることを確認)
+
+# Fine Tuningによって学習するとき
+```
+train_model.pyのコメントアウト部分を参照して実行してください. (例を記載しています.)
+
+args.is_backdoored      : fine tuneの際の設定を行ってください.
+args.replicate_times    : Targetted で行いたい場合は, poisoned 画像の複製回数を設定してください. (TruthSerum参照)
+args.truthserum         : Target or Untarget : TruthSerumの攻撃設定を記載してください。
+args.model_dir          : fine tune する際の'ロード元'のモデルのファイルを指定してください.
+args.epochs             : エポック回数 (ロード元のモデルのものです. ロード時のファイル名に使用します. )
+SHADOW_MODEL_NUM        : shadow modelの数
+args.train_mode         : overall or fine_turn : overall は一括学習, fine tune はファインチューニングです.
+args.fine_tune_dir      : ファインチューニングした際のモデルの保存先ディレクトリ. (cleanなモデルを残しておきたいと思ったためです. )
+args.finetune_epochs    : ファインチューニング時のエポック数です.
+```
+
+# attack_lira.pyの実行
+```
+attack_lira.pyのコメントアウト部分を参照してください.
+args.truthserum         : target or untarget : TruthSerumの設定.
+args.replicate_times    : target時のpoisoned dataの複製回数について(不要？)
+args.model_dir          : モデルのロード元のディレクトリ. 
+args.is_backdoored      : 学習時にバックドアしたかどうか. (データの生成に使用)
+args.poison_num         : untarget時のpoisoned num .
+args.n_runs             : shadow modelの数. 
+```

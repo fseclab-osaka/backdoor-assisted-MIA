@@ -217,16 +217,19 @@ def to_TruthSerum_target_dataset(args, attack_idx, MIA_dataset:Dataset= None) ->
             インデックスが異なる時。
             この時実験の正しさが保障されない。
     """
+    
     TRUTHSERUM_TARGET_DATA_NUM = 250
-    ALL_FIXED_SEED = 1729 
+    ALL_FIXED_SEED = 1729 # タクシー数
+
     # インデックスを保存したファイルのファイル名を取得
-    repro_str = repro_str_for_target_model(args, attack_idx)
+    repro_str = repro_str_for_shadow_model(args, attack_idx)
     index_file_path = STR_INDEX_FILE_NAME(args, repro_str)
 
     # ファイルからインデックスを読み込み
     with open(index_file_path, mode='r') as rf:
-        str_indices = rf.read()
+        index_file_str = rf.read()
     
+    str_indices = index_file_str.split('\n')[1]
     # インデックスをとる。
     indices = eval(str_indices)
 
@@ -243,7 +246,6 @@ def to_TruthSerum_target_dataset(args, attack_idx, MIA_dataset:Dataset= None) ->
             raise ValueError("On TruthSerum Target Settings, Index is not same as training index.")
 
     return truthserum_target_dataset, indices
-
 
 ########## attack_lira ##########
 def get_index_shuffled(args, rseed:int) -> list:
@@ -283,8 +285,8 @@ def get_in_index(args, repro_str:str) -> Tuple[list, list]:
 from recursive_index import recursive_index
 def Membership_info(args, fixed_generator:torch.Generator):
     target_dataset = load_dataset(args, 'raw_train')
-    CIFAR10_TRAIN_NUM = len(target_dataset)
-    HALF_LEN_CIFAR10_TRAIN_NUM = int(CIFAR10_TRAIN_NUM / 2)
+    CIFAR10_TRAIN_NUM = len(target_dataset) # 50000
+    HALF_LEN_CIFAR10_TRAIN_NUM = int(CIFAR10_TRAIN_NUM / 2) # 25000
     original_data_train, original_data_train_out = torch.utils.data.random_split(dataset=target_dataset, lengths=[HALF_LEN_CIFAR10_TRAIN_NUM, HALF_LEN_CIFAR10_TRAIN_NUM], generator=fixed_generator)
 
     orifinal_data_train_reidx = recursive_index(now_idx_list=original_data_train.indices, recursive_idx=None, now_dataset_for_safe=original_data_train, original_dataset=target_dataset)
@@ -320,3 +322,50 @@ def Membership_info(args, fixed_generator:torch.Generator):
     # in_data_idices, out_data_idices, train_dataset_proxy, batchsize のみ必要
     # in_data_idices, out_data_idices は TruthSerum target settings で必要
     return train_dataset_proxy, in_data_idices, out_data_idices
+
+def Membership_info_untarget(args, fixed_generator:torch.Generator):
+
+    # 2023-01-17: ミーティングより改変
+    # attack_lira.pyも改変必要?
+    # test : 12500, 12500, 25000
+    POISON_NUM = args.poison_num
+    TRAIN_IN_NUM = 12500
+    # POISON_NUM = 12500
+
+    original_dataset = load_dataset(args, 'raw_train')
+
+    dataset_for_clean, dataset_for_bd =  torch.utils.data.random_split(dataset=original_dataset, 
+                lengths= [len(original_dataset) - POISON_NUM, POISON_NUM], generator=fixed_generator)
+    
+    dataset_for_clean_reidx = recursive_index(now_idx_list=dataset_for_clean.indices, recursive_idx=None, now_dataset_for_safe=dataset_for_clean, original_dataset=original_dataset)
+    dataset_for_bd_reidx = recursive_index(now_idx_list=dataset_for_bd.indices, recursive_idx=None, now_dataset_for_safe=dataset_for_bd, original_dataset=original_dataset)
+        
+    # truthserum_untarget_backdoored_dataset_idx = dataset_for_bd.indices
+
+    # args.poisoning_rate = 1.0
+    # truthserum_untarget_backdoored_dataset = BBM.train_poison(args=args,dataset=dataset_for_bd)
+        
+    in_dataset, out_dataset = torch.utils.data.random_split(dataset=dataset_for_clean, 
+                lengths= [TRAIN_IN_NUM, len(dataset_for_clean) - TRAIN_IN_NUM], generator=fixed_generator)
+    
+    in_dataset_reidx  = recursive_index(now_idx_list=in_dataset.indices, recursive_idx=dataset_for_clean_reidx, now_dataset_for_safe=in_dataset, original_dataset=original_dataset)
+    out_dataset_reidx = recursive_index(now_idx_list=out_dataset.indices, recursive_idx=dataset_for_clean_reidx, now_dataset_for_safe=out_dataset, original_dataset=original_dataset)
+
+    out_dataset_as_non_member, out_dataset_else = torch.utils.data.random_split(dataset=out_dataset, 
+                lengths= [TRAIN_IN_NUM, len(out_dataset) - TRAIN_IN_NUM], generator=fixed_generator)
+    
+    Member_reidx = in_dataset_reidx
+    Non_Member_reidx = recursive_index(now_idx_list=out_dataset_as_non_member.indices, recursive_idx=out_dataset_reidx, now_dataset_for_safe=out_dataset_as_non_member, original_dataset=original_dataset)
+
+    Member_Non_Member_dataset = torch.utils.data.ConcatDataset([in_dataset, out_dataset_as_non_member])
+
+    in_data_idices = list()
+    for idx in range(25000):
+        in_data_idices.append(Member_reidx.get_original_data_idx(idx))
+
+    out_data_idices = list()
+    for idx in range(25000):
+        out_data_idices.append(Non_Member_reidx.get_original_data_idx(idx))
+
+    # return Member_Non_Member_dataset, Member_reidx, Non_Member_reidx
+    return Member_Non_Member_dataset, in_data_idices, out_data_idices, Member_reidx, Non_Member_reidx

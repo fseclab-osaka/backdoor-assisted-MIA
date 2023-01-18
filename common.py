@@ -71,6 +71,24 @@ def make_model(args):
 
     return model, optimizer, scheduler
 
+def select_optim_scheduler(args, model):
+    """
+        2023-01-18 作成
+    """
+    if args.optimizer == 'adam':
+        optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
+    elif args.optimizer == 'RMSprop':
+        optimizer = optim.RMSprop(model.parameters(), lr=args.lr, weight_decay=1e-4)
+    elif args.optimizer == 'MSGD':
+        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
+    elif args.optimizer == 'SGD':
+        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0, weight_decay=1e-4)
+    else:
+        print(args.optimizer, 'has not been implimented')
+        sys.exit()
+    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[80], gamma=0.1)
+
+    return model, optimizer, scheduler
 
 def load_model(args, attack_idx=0, shadow_type=''):
     if not args.disable_dp:
@@ -88,10 +106,55 @@ def load_model(args, attack_idx=0, shadow_type=''):
 
 def _load_model(args, repro_str):
     model, optimizer, scheduler = make_model(args)
+    # print(model.state_dict().items())
+    # for name, param in model.named_parameters():
+        # if param.requires_grad:
+            # print(name, param.data)
     model.load_state_dict(torch.load(f"{args.model_dir}/model/{repro_str}.pt"))
+    # for name, param in model.named_parameters():
+    #     if param.requires_grad:
+    #         print(name, param.data)
+    # print(model.state_dict().items())
+    # print(model.get_parameter())
     print(repro_str, 'loaded')
     return model
 
+def save_model(args, shadow_type:str, attack_idx:int, model:torch.nn.Module):
+    if not args.disable_dp:
+        # 何を保存するか, ファイル名はどうするかが違う
+        if args.train_mode == 'overall':
+            if len(shadow_type) > 0:
+                repro_str = STR_REPRO_DP_SHADOW(args,shadow_type,attack_idx)
+            else:
+                repro_str = STR_REPRO_DP_TARGET(args,attack_idx)
+            saved_model_path = STR_MODEL_FILE_NAME(args,repro_str)
+        elif args.train_mode == 'fine_tune':
+            if len(shadow_type) > 0:
+                repro_str = STR_REPRO_DP_SHADOW_FT(args,shadow_type,attack_idx)
+            else:
+                repro_str = STR_REPRO_DP_TARGET_FT(args,attack_idx)
+            saved_model_path = STR_MODEL_FINE_NAME_FINE_TUNE(args,repro_str)
+        else:
+            raise ValueError(f'args.train_mode is wrong. {args.train_mode}')
+        saved_datas = model._module.state_dict() # DPの時はこっち
+    else:
+        if args.train_mode == 'overall':
+            if len(shadow_type) > 0:
+                repro_str = STR_REPRO_NON_DP_SHADOW(args,shadow_type,attack_idx)
+            else:
+                repro_str = STR_REPRO_NON_DP_TARGET(args,attack_idx)
+            saved_model_path = STR_MODEL_FILE_NAME(args,repro_str)
+        elif args.train_mode == 'fine_tune':
+            if len(shadow_type) > 0:
+                repro_str = STR_REPRO_NON_DP_SHADOW_FT(args,shadow_type,attack_idx)
+            else:
+                repro_str = STR_REPRO_NON_DP_TARGET_FT(args,attack_idx)
+            saved_model_path = STR_MODEL_FINE_NAME_FINE_TUNE(args,repro_str)
+        else:
+            raise ValueError(f'args.train_mode is wrong. {args.train_mode}')
+        saved_datas = model.state_dict()        # Non-DPの時はこっち
+    torch.save(saved_datas, saved_model_path )
+    print(f"torch.save : {saved_model_path}")
 
 def train(args, model, train_loader, optimizer):
     device = torch.device(args.device)
@@ -167,7 +230,16 @@ def train_loop(args, train_loader, verbose=1, attack_idx=0, shadow_type='',
         edlogger.init_for_train_loop('backdoor')
     else:
         edlogger.init_for_train_loop('clean')
-    model, optimizer, scheduler = make_model(args)
+
+    if args.train_mode == 'overall':
+        model, optimizer, scheduler = make_model(args)
+    elif args.train_mode == 'fine_tune':
+        repro_str = repro_str_per_model(args, attack_idx, shadow_type)
+        model = load_model(args, attack_idx, shadow_type)
+        model, optimizer, scheduler = select_optim_scheduler(args,model)
+    else:
+        raise ValueError(f'args.train_mode is wrong. {args.train_mode}')
+
     if not args.disable_dp:
         privacy_engine = PrivacyEngine()
         model, optimizer, train_loader = privacy_engine.make_private(
@@ -181,7 +253,14 @@ def train_loop(args, train_loader, verbose=1, attack_idx=0, shadow_type='',
     sstime = time.time()
     epsilon = -1
 
-    for epoch in range(1, args.epochs + 1):
+    if args.train_mode == 'overall':
+        EPOCH = args.epochs
+    elif args.train_mode == 'fine_tune':
+        EPOCH = args.finetune_epochs
+    else:
+        raise ValueError(f'args.train_mode is wrong. {args.train_mode}')
+
+    for epoch in range(1, EPOCH + 1):
         acc, loss = train(args, model, train_loader, optimizer)
         epoch_time = time.time() - sstime
         if not args.disable_dp:
@@ -221,24 +300,19 @@ def train_loop(args, train_loader, verbose=1, attack_idx=0, shadow_type='',
         else:
             edlogger.set_val_for_clean_trainloop(epoch, acc, loss, test_correct, test_loss)
     
-    if not args.disable_dp:
-        if len(shadow_type) > 0:
-            repro_str = STR_REPRO_DP_SHADOW(args,shadow_type,attack_idx)
-        else:
-            repro_str = STR_REPRO_DP_TARGET(args,attack_idx)
-        print(f"torch.save : {STR_MODEL_FILE_NAME(args,repro_str)}")
-        torch.save(model._module.state_dict(), STR_MODEL_FILE_NAME(args,repro_str) )
-    else:
-        if len(shadow_type) > 0:
-            repro_str = STR_REPRO_NON_DP_SHADOW(args,shadow_type,attack_idx)
-        else:
-            repro_str = STR_REPRO_NON_DP_TARGET(args,attack_idx)
-        print(f"torch.save : {STR_MODEL_FILE_NAME(args,repro_str)}")
-        torch.save(model.state_dict(), STR_MODEL_FILE_NAME(args,repro_str) )
+    # モデルの保存
+    save_model(args, shadow_type, attack_idx, model)
     del model
     torch.cuda.empty_cache()
 
-    edlogger.save_data_for_trainloop(dir_path = f"{args.model_dir}/{repro_str}/data/csv", csv_file_name= 'result.csv')
+    # CSVにデータを保存. 
+    if args.train_mode == 'overall':
+        edlogger.save_data_for_trainloop(dir_path = f"{args.model_dir}/{repro_str}/data/csv", csv_file_name= 'result.csv')
+    elif args.train_mode == 'fine_tune':
+        edlogger.save_data_for_trainloop(dir_path = f"{args.fine_tune_dir}/{repro_str}/data/csv", csv_file_name= 'result.csv')
+    else:
+        raise ValueError(f'args.train_mode is wrong. {args.train_mode}')
+    
     return epsilon, epoch_time
 
 

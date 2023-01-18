@@ -1,4 +1,5 @@
 __pycache__/*
+attack_lira_utils/__pycache__/*
 .clean_experiment
 .clean_experiment/*
 Backdoor_5000
@@ -55,3 +56,14 @@ train_model copy.py
 TEST_2023_01_17/*
 
 TEST2_2023_01_17*/*
+
+Target_r4/*
+STASH/*
+settings.json
+
+TEST_target_clean_2023-01-18/*
+TEST_untarget_clean_2023-01-18/*
+23-01-17_Target_replicate_4
+victim_likelihood_list_distribution.png
+TEST_target_cleafine-tuned_dir_clean/*
+TEST_target_cleafine-tuned_dir_target4/*

@@ -215,6 +215,27 @@ def get_arg():
       default=1, # 1, 2, 4, 8, 16
       help="poinsoning rate",
     )
+    # fine tune のため
+    parser.add_argument(
+      "--fine_tune_dir",
+      type=str,
+      default='fine_tuned',
+      help="directory to save models when fine tuning",
+    )
+    parser.add_argument(
+      "--train_mode",
+      type=str,
+      default='overall', # or fine_tune
+      help="How models will be trained.",
+    )
+    parser.add_argument(
+      "--finetune_epochs",
+      type=int,
+      default=100,
+      metavar="N",
+      help="number of epochs to train when finetuning.",
+    )
+
     args = parser.parse_args()
 
     return args

@@ -1,4 +1,6 @@
 STR_MODEL_FILE_NAME :str = lambda args, repro_str : f"{args.model_dir}/model/{repro_str}.pt"
+STR_MODEL_FINE_NAME_FINE_TUNE : str = lambda args, repro_str : f"{args.fine_tune_dir}/model/{repro_str}.pt"
+
 
 STR_INDEX_FILE_NAME :str = lambda args, repro_str : f"{args.model_dir}/{repro_str}_index.txt"
 STR_IN_OUT_INDEX_FILE_NAME :str = lambda args, repro_str : f"{args.model_dir}/{repro_str}_in_out_index.txt"
@@ -22,6 +24,21 @@ STR_REPRO_NON_DP_TARGET :str = lambda args,attack_idx : (
                 f"{args.dataset}_{args.network}_{args.optimizer}_{args.lr}_"
                 f"{args.train_batch_size}_{args.epochs}_{args.exp_idx}_{attack_idx}")
 
+# fine tune
+STR_REPRO_DP_SHADOW_FT :str = lambda args,shadow_type,attack_idx : (
+                    f"{args.dataset}_{args.network}_{shadow_type}_{args.optimizer}_{args.lr}_{args.sigma}_"
+                    f"{args.max_per_sample_grad_norm}_{args.train_batch_size}_{args.finetune_epochs}_{args.exp_idx}_{attack_idx}"
+                )
+STR_REPRO_DP_TARGET_FT :str = lambda args,attack_idx : (
+                f"{args.dataset}_{args.network}_{args.optimizer}_{args.lr}_{args.sigma}_"
+                f"{args.max_per_sample_grad_norm}_{args.train_batch_size}_{args.finetune_epochs}_{args.exp_idx}_{attack_idx}"
+            )
+STR_REPRO_NON_DP_SHADOW_FT :str = lambda args,shadow_type,attack_idx : (
+                    f"{args.dataset}_{args.network}_{shadow_type}_{args.optimizer}_{args.lr}_"
+                    f"{args.train_batch_size}_{args.finetune_epochs}_{args.exp_idx}_{attack_idx}")
+STR_REPRO_NON_DP_TARGET_FT :str = lambda args,attack_idx : (
+                f"{args.dataset}_{args.network}_{args.optimizer}_{args.lr}_"
+                f"{args.train_batch_size}_{args.finetune_epochs}_{args.exp_idx}_{attack_idx}")
 # EXPRIMENT_SETTING_NAME :str = lambda  
 
 DATA_PKL_FILE_NAME :str = lambda repro_str, experiment_strings : f'data/lira_{repro_str}_{experiment_strings}.pkl'
@@ -62,3 +79,11 @@ def repro_str_attack_lira(args):
     else:
         repro_str = STR_REPRO_NON_DP_ATTACK_LIRA(args)
     return repro_str
+
+def repro_str_per_model(args, attack_idx:int, shadow_type='') -> str:
+    if shadow_type == '':
+        return repro_str_for_target_model(args, attack_idx)
+    elif shadow_type == 'shadow':
+        return repro_str_for_shadow_model(args, attack_idx)
+    else:
+        raise ValueError(f'shadow_type is wrong.{shadow_type}')
