@@ -1684,3 +1684,138 @@ epoch:149, test_loss:1.5688, test_correct:0.8952
 epoch:149, asr_loss:2.4439, asr_correct:0.0137
 Train Epoch: 150 	TRAIN ACC: 0.9941923076923077 	Loss: 0.016629 time 3431.4321320056915
 epoch:150, test_loss:1.5680, test_correct:0.8941
+epoch:150, asr_loss:2.4442, asr_correct:0.0136
+Train Epoch: 151 	TRAIN ACC: 0.9943076923076923 	Loss: 0.017512 time 3454.3212571144104
+epoch:151, test_loss:1.5699, test_correct:0.8927
+epoch:151, asr_loss:2.4438, asr_correct:0.0143
+Train Epoch: 152 	TRAIN ACC: 0.994576923076923 	Loss: 0.016215 time 3477.1319947242737
+epoch:152, test_loss:1.5681, test_correct:0.8942
+epoch:152, asr_loss:2.4440, asr_correct:0.0140
+Train Epoch: 153 	TRAIN ACC: 0.9948846153846154 	Loss: 0.015525 time 3500.2358639240265
+epoch:153, test_loss:1.5674, test_correct:0.8957
+epoch:153, asr_loss:2.4439, asr_correct:0.0138
+Train Epoch: 154 	TRAIN ACC: 0.9945384615384616 	Loss: 0.016121 time 3523.4193139076233
+epoch:154, test_loss:1.5661, test_correct:0.8977
+epoch:154, asr_loss:2.4444, asr_correct:0.0135
+Train Epoch: 155 	TRAIN ACC: 0.9947307692307692 	Loss: 0.015852 time 3545.8722581863403
+epoch:155, test_loss:1.5655, test_correct:0.8987
+epoch:155, asr_loss:2.4446, asr_correct:0.0132
+Train Epoch: 156 	TRAIN ACC: 0.9949230769230769 	Loss: 0.015231 time 3568.5550825595856
+epoch:156, test_loss:1.5652, test_correct:0.8977
+epoch:156, asr_loss:2.4447, asr_correct:0.0126
+Train Epoch: 157 	TRAIN ACC: 0.9950384615384615 	Loss: 0.015749 time 3591.2449510097504
+epoch:157, test_loss:1.5656, test_correct:0.8970
+epoch:157, asr_loss:2.4445, asr_correct:0.0136
+Train Epoch: 158 	TRAIN ACC: 0.9947307692307692 	Loss: 0.015877 time 3614.8666791915894
+epoch:158, test_loss:1.5655, test_correct:0.8978
+epoch:158, asr_loss:2.4443, asr_correct:0.0131
+Train Epoch: 159 	TRAIN ACC: 0.9950769230769231 	Loss: 0.015611 time 3638.328569173813
+epoch:159, test_loss:1.5655, test_correct:0.8978
+epoch:159, asr_loss:2.4443, asr_correct:0.0140
+Train Epoch: 160 	TRAIN ACC: 0.995 	Loss: 0.015603 time 3661.0568590164185
+epoch:160, test_loss:1.5663, test_correct:0.8975
+epoch:160, asr_loss:2.4448, asr_correct:0.0131
+Train Epoch: 161 	TRAIN ACC: 0.9940384615384615 	Loss: 0.016722 time 3683.866748571396
+epoch:161, test_loss:1.5719, test_correct:0.8922
+epoch:161, asr_loss:2.4445, asr_correct:0.0128
+Train Epoch: 162 	TRAIN ACC: 0.9946153846153846 	Loss: 0.016065 time 3707.259151697159
+epoch:162, test_loss:1.5666, test_correct:0.8964
+epoch:162, asr_loss:2.4448, asr_correct:0.0129
+Train Epoch: 163 	TRAIN ACC: 0.9951538461538462 	Loss: 0.015615 time 3729.9879236221313
+epoch:163, test_loss:1.5687, test_correct:0.8946
+epoch:163, asr_loss:2.4444, asr_correct:0.0137
+Train Epoch: 164 	TRAIN ACC: 0.9951538461538462 	Loss: 0.015166 time 3753.522735118866
+epoch:164, test_loss:1.5688, test_correct:0.8955
+epoch:164, asr_loss:2.4450, asr_correct:0.0119
+Train Epoch: 165 	TRAIN ACC: 0.9946153846153846 	Loss: 0.016806 time 3776.88960814476
+epoch:165, test_loss:1.5716, test_correct:0.8896
+epoch:165, asr_loss:2.4437, asr_correct:0.0148
+Train Epoch: 166 	TRAIN ACC: 0.9948846153846154 	Loss: 0.015229 time 3799.6655921936035
+epoch:166, test_loss:1.5658, test_correct:0.8971
+epoch:166, asr_loss:2.4448, asr_correct:0.0129
+Train Epoch: 167 	TRAIN ACC: 0.9942692307692308 	Loss: 0.016561 time 3823.002844810486
+epoch:167, test_loss:1.5714, test_correct:0.8916
+epoch:167, asr_loss:2.4441, asr_correct:0.0131
+Train Epoch: 168 	TRAIN ACC: 0.9946538461538461 	Loss: 0.017079 time 3846.1815977096558
+epoch:168, test_loss:1.5680, test_correct:0.8947
+epoch:168, asr_loss:2.4438, asr_correct:0.0140
+Train Epoch: 169 	TRAIN ACC: 0.9945384615384616 	Loss: 0.016871 time 3869.348417520523
+epoch:169, test_loss:1.5709, test_correct:0.8927
+epoch:169, asr_loss:2.4438, asr_correct:0.0142
+Train Epoch: 170 	TRAIN ACC: 0.9936153846153846 	Loss: 0.018714 time 3892.493184566498
+epoch:170, test_loss:1.5690, test_correct:0.8938
+epoch:170, asr_loss:2.4442, asr_correct:0.0138
+Train Epoch: 171 	TRAIN ACC: 0.9946538461538461 	Loss: 0.016343 time 3914.9124710559845
+epoch:171, test_loss:1.5659, test_correct:0.8968
+epoch:171, asr_loss:2.4448, asr_correct:0.0132
+Train Epoch: 172 	TRAIN ACC: 0.9942307692307693 	Loss: 0.016961 time 3937.9736013412476
+epoch:172, test_loss:1.5674, test_correct:0.8956
+epoch:172, asr_loss:2.4446, asr_correct:0.0128
+Train Epoch: 173 	TRAIN ACC: 0.9946923076923077 	Loss: 0.016392 time 3961.542610168457
+epoch:173, test_loss:1.5724, test_correct:0.8913
+epoch:173, asr_loss:2.4436, asr_correct:0.0141
+Train Epoch: 174 	TRAIN ACC: 0.9946153846153846 	Loss: 0.016887 time 3984.6915531158447
+epoch:174, test_loss:1.5700, test_correct:0.8918
+epoch:174, asr_loss:2.4444, asr_correct:0.0138
+Train Epoch: 175 	TRAIN ACC: 0.9946538461538461 	Loss: 0.016544 time 4008.354996442795
+epoch:175, test_loss:1.5692, test_correct:0.8935
+epoch:175, asr_loss:2.4440, asr_correct:0.0136
+Train Epoch: 176 	TRAIN ACC: 0.9947692307692307 	Loss: 0.015582 time 4032.0769941806793
+epoch:176, test_loss:1.5680, test_correct:0.8946
+epoch:176, asr_loss:2.4445, asr_correct:0.0133
+Train Epoch: 177 	TRAIN ACC: 0.9949615384615385 	Loss: 0.015128 time 4055.789157629013
+epoch:177, test_loss:1.5661, test_correct:0.8961
+epoch:177, asr_loss:2.4450, asr_correct:0.0130
+Train Epoch: 178 	TRAIN ACC: 0.9948846153846154 	Loss: 0.015275 time 4079.2427344322205
+epoch:178, test_loss:1.5679, test_correct:0.8963
+epoch:178, asr_loss:2.4441, asr_correct:0.0137
+Train Epoch: 179 	TRAIN ACC: 0.9942307692307693 	Loss: 0.017969 time 4101.884410142899
+epoch:179, test_loss:1.5709, test_correct:0.8937
+epoch:179, asr_loss:2.4439, asr_correct:0.0130
+Train Epoch: 180 	TRAIN ACC: 0.9946923076923077 	Loss: 0.016461 time 4125.098116159439
+epoch:180, test_loss:1.5713, test_correct:0.8914
+epoch:180, asr_loss:2.4442, asr_correct:0.0138
+Train Epoch: 181 	TRAIN ACC: 0.995 	Loss: 0.016516 time 4148.3882966041565
+epoch:181, test_loss:1.5702, test_correct:0.8939
+epoch:181, asr_loss:2.4453, asr_correct:0.0123
+Train Epoch: 182 	TRAIN ACC: 0.9943846153846154 	Loss: 0.017343 time 4171.840099573135
+epoch:182, test_loss:1.5691, test_correct:0.8939
+epoch:182, asr_loss:2.4443, asr_correct:0.0129
+Train Epoch: 183 	TRAIN ACC: 0.9952307692307693 	Loss: 0.014624 time 4195.006766080856
+epoch:183, test_loss:1.5650, test_correct:0.8985
+epoch:183, asr_loss:2.4447, asr_correct:0.0129
+Train Epoch: 184 	TRAIN ACC: 0.9953461538461539 	Loss: 0.014317 time 4218.353546857834
+epoch:184, test_loss:1.5674, test_correct:0.8955
+epoch:184, asr_loss:2.4449, asr_correct:0.0127
+Train Epoch: 185 	TRAIN ACC: 0.9945 	Loss: 0.016087 time 4241.607318162918
+epoch:185, test_loss:1.5659, test_correct:0.8967
+epoch:185, asr_loss:2.4441, asr_correct:0.0139
+Train Epoch: 186 	TRAIN ACC: 0.995 	Loss: 0.015646 time 4265.112172603607
+epoch:186, test_loss:1.5651, test_correct:0.8976
+epoch:186, asr_loss:2.4443, asr_correct:0.0133
+Train Epoch: 187 	TRAIN ACC: 0.9951923076923077 	Loss: 0.015215 time 4288.335008621216
+epoch:187, test_loss:1.5670, test_correct:0.8956
+epoch:187, asr_loss:2.4453, asr_correct:0.0118
+Train Epoch: 188 	TRAIN ACC: 0.9947692307692307 	Loss: 0.015624 time 4312.20725941658
+epoch:188, test_loss:1.5706, test_correct:0.8917
+epoch:188, asr_loss:2.4436, asr_correct:0.0145
+Train Epoch: 189 	TRAIN ACC: 0.9945 	Loss: 0.016074 time 4335.523384809494
+epoch:189, test_loss:1.5759, test_correct:0.8875
+epoch:189, asr_loss:2.4434, asr_correct:0.0140
+Train Epoch: 190 	TRAIN ACC: 0.9946538461538461 	Loss: 0.015606 time 4358.3169202804565
+epoch:190, test_loss:1.5694, test_correct:0.8934
+epoch:190, asr_loss:2.4438, asr_correct:0.0140
+Train Epoch: 191 	TRAIN ACC: 0.9945384615384616 	Loss: 0.016710 time 4381.4924302101135
+epoch:191, test_loss:1.5681, test_correct:0.8947
+epoch:191, asr_loss:2.4447, asr_correct:0.0138
+Train Epoch: 192 	TRAIN ACC: 0.9943461538461539 	Loss: 0.018171 time 4404.434602975845
+epoch:192, test_loss:1.5672, test_correct:0.8943
+epoch:192, asr_loss:2.4443, asr_correct:0.0138
+Train Epoch: 193 	TRAIN ACC: 0.9943461538461539 	Loss: 0.017368 time 4427.853122711182
+epoch:193, test_loss:1.5673, test_correct:0.8959
+epoch:193, asr_loss:2.4437, asr_correct:0.0140
+Train Epoch: 194 	TRAIN ACC: 0.9948076923076923 	Loss: 0.015820 time 4451.361849069595
+epoch:194, test_loss:1.5686, test_correct:0.8950
+epoch:194, asr_loss:2.4439, asr_correct:0.0137
+Train Epoch: 195 	TRAIN ACC: 0.9950384615384615 	Loss: 0.014894 time 4474.890662431717
+epoch:195, test_loss:1.5708, test_correct:0.8924
