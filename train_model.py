@@ -151,9 +151,9 @@ def train_shadow(args, logger:ExperimentDataLogger, model_type = 'target'):
             print("CLEAN NUM : ", len(clean_in_dataset))
             print("BACKDOOR NUM : ", len(backdoored_dataset))
 
-            if args.train_mode == 'fine_tune':
+            if args.train_mode == 'fine_tune' and not args.fine_tune_mix:
                 train_dataset_proxy = backdoored_dataset
-            elif args.train_mode == 'overall':
+            elif args.train_mode == 'overall' or (args.train_mode == 'fine_tune' and args.fine_tune_mix):
                train_dataset_proxy = torch.utils.data.ConcatDataset([clean_in_dataset, backdoored_dataset])
             else:
                 raise ValueError(f'train_mode is wrong. {args.train_mode}')
@@ -222,10 +222,16 @@ if __name__ == "__main__":
     # clean 
     # args.is_backdoored = False
     # args.truthserum = 'untarget'
-    # args.model_dir = 'CleanOnly'
+    # args.model_dir = 'CleanOnlyUntarget'
     # SHADOW_MODEL_NUM = 128
-    
     # args.epochs = 100
+
+    # clean 
+    args.is_backdoored = False
+    args.truthserum = 'target'
+    args.model_dir = 'CleanOnlyTarget'
+    SHADOW_MODEL_NUM = 128
+    args.epochs = 100
 
     ##### 下記でデバッグしました. #####
     # TEST(target) ok
@@ -285,12 +291,14 @@ if __name__ == "__main__":
     args.is_backdoored = True                               # 今から fine tune する際の設定で大丈夫です. 
     args.replicate_times = 4
     args.truthserum = 'target'                              # clean model の作成方法はtargetにしていることが前提です。(untargetでは動くと思いますが実験結果が意味のないものになります.)
-    args.model_dir = 'TEST_target_clean_2023-01-18'         # clean model の格納先
-    args.epochs = 200
-    SHADOW_MODEL_NUM = 5
+    args.model_dir = 'Target4'         # clean model の格納先
+    args.epochs = 100
+    SHADOW_MODEL_NUM = 20
     args.train_mode = 'overall'                           # fine_tune or overall
-    args.fine_tune_dir = 'TEST_target_cleafine-tuned_dir_target4'   # fine tune 後のモデルの保存先
-    args.finetune_epochs = 10                               # fine tune 時のエポック数
+    #args.fine_tune_dir = 'TEST_target_cleafine-tuned_dir_target4'   # fine tune 後のモデルの保存先
+    #args.finetune_epochs = 10                               # fine tune 時のエポック数
+    #args.fine_tune_mix = True
+    
 
     # ディレクトリの存在確認や実験設定の出力(準備)
     _confirm_directory(args)

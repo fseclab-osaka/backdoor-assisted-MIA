@@ -147,11 +147,18 @@ def make_backdoored_dataset(args, BBM:BadNetBackdoorManager, dataset_for_bd:Data
         POISON_NUM = args.poison_num
         TRAIN_IN_NUM = 12500
         # POISON_NUM = 12500
+        
+        BACKDOOR_ALL_FIXED = 1729*1729
+        all_fixed_generator = torch.Generator().manual_seed(BACKDOOR_ALL_FIXED)
+
+        BACKDOOR_ALL_FIXED = 1729*1729
+        all_fixed_generator = torch.Generator().manual_seed(BACKDOOR_ALL_FIXED)
+
 
         original_dataset = load_dataset(args, 'raw_train')
 
         dataset_for_clean, dataset_for_bd =  torch.utils.data.random_split(dataset=original_dataset, 
-                lengths= [len(original_dataset) - POISON_NUM, POISON_NUM], generator=fixed_generator)
+                lengths= [len(original_dataset) - POISON_NUM, POISON_NUM], generator=all_fixed_generator)
         
         truthserum_untarget_backdoored_dataset_idx = dataset_for_bd.indices
 

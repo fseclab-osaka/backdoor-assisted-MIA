@@ -14,10 +14,9 @@ from typing import Dict,Tuple
 """
 
 
-def correspondence_between_data_and_shadow_model(dataset:Dataset, shadow_model_num:int) -> Tuple[dict, dict]:
+def correspondence_between_data_and_shadow_model(dataset:Dataset, shadow_model_num:int, generator:torch.Generator) -> Tuple[dict, dict]:
     
-    ALL_FIXED_SEED = 9999
-    all_fixed_generator = torch.Generator().manual_seed(ALL_FIXED_SEED)
+    
     
     dataidx_to_shadow_model_idx : Dict[int, list] = dict()
     # shadow model のインデックスをキーにして、データのインデックスを計算する.
@@ -28,7 +27,7 @@ def correspondence_between_data_and_shadow_model(dataset:Dataset, shadow_model_n
     for dataidx, train_data in enumerate(dataset):
 
         # 0 から SHADOW_MODEL_NUM-1 までのランダムな数列を生成する.
-        random_sequence =  torch.randperm(shadow_model_num, generator = all_fixed_generator)
+        random_sequence =  torch.randperm(shadow_model_num, generator = generator)
         random_sequence = random_sequence.tolist()
 
         for smi_sequence_idx, shadow_model_idx in enumerate(random_sequence):
@@ -81,11 +80,31 @@ if __name__ == '__main__':
                     transform=trans,
                 )
     
-    dataidx_to_shadow_model_idx, shadow_model_idx_to_dataidx = correspondence_between_data_and_shadow_model(train_dataset, 16)
+    ALL_FIXED_SEED = 9999
+    all_fixed_generator = torch.Generator().manual_seed(ALL_FIXED_SEED)
+    dataidx_to_shadow_model_idx, shadow_model_idx_to_dataidx = correspondence_between_data_and_shadow_model(train_dataset, 16, all_fixed_generator)
     
     # shadow model 0で学習する場合
+    # shadow model 0 の random perm
     data_idx = shadow_model_idx_to_dataidx[0]
     print(data_idx)
+    # index 0のデータが半々になっていることがわかる. 
+    print(shadow_model_idx_to_dataidx[0][0])
+    print(shadow_model_idx_to_dataidx[1][0])
+    print(shadow_model_idx_to_dataidx[2][0])
+    print(shadow_model_idx_to_dataidx[3][0])
+    print(shadow_model_idx_to_dataidx[4][0])
+    print(shadow_model_idx_to_dataidx[5][0])
+    print(shadow_model_idx_to_dataidx[6][0])
+    print(shadow_model_idx_to_dataidx[7][0])
+    print(shadow_model_idx_to_dataidx[8][0])
+    print(shadow_model_idx_to_dataidx[9][0])
+    print(shadow_model_idx_to_dataidx[10][0])
+    print(shadow_model_idx_to_dataidx[11][0])
+    print(shadow_model_idx_to_dataidx[12][0])
+    print(shadow_model_idx_to_dataidx[13][0])
+    print(shadow_model_idx_to_dataidx[14][0])
+    print(shadow_model_idx_to_dataidx[15][0])
 
     # Selecting data from dataset by indices
     # https://discuss.pytorch.org/t/selecting-data-from-dataset-by-indices/55290/1
