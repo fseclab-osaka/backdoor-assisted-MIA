@@ -10,6 +10,7 @@ def visualize_conf_hist(dir_name:str, conf_mat:np.ndarray, label_mat:np.ndarray,
         in_conf = np.concatenate(in_conf)
         out_conf = tmp_conf[label_mat[:,i] == 0]
         out_conf = np.concatenate(out_conf)
+        # print(tmp_conf)
         plt.hist(in_conf, label='in')
         plt.hist(out_conf, label='out')
         plt.legend()

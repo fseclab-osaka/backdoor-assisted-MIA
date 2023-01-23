@@ -239,19 +239,6 @@ def train_loop(args, train_loader, verbose=1, attack_idx=0, shadow_type='',
         model, optimizer, scheduler = select_optim_scheduler(args,model)
     else:
         raise ValueError(f'args.train_mode is wrong. {args.train_mode}')
-    
-    ### make Embbed & Trigger model for IJCAI ###
-    from EmbedModule import Embbed
-    EmbbedNet = Embbed()
-    EmbbedNet = EmbbedNet.to(device)
-    import Models
-    TriggerNet = Models.U_Net()
-    TriggerNet = TriggerNet.to(device)
-    Target_labels = torch.stack([i*torch.ones(1) for i in range(10)]).expand(
-        10, opt.batch_size).permute(1, 0).reshape(-1, 1).squeeze().to(dtype=torch.long, device=opt.device)
-    optimizer_map = torch.optim.Adam(
-        TriggerNet.parameters(), lr=opt.lr_optimizer_for_t)
-    #############################################
 
     if not args.disable_dp:
         privacy_engine = PrivacyEngine()
@@ -274,10 +261,7 @@ def train_loop(args, train_loader, verbose=1, attack_idx=0, shadow_type='',
         raise ValueError(f'args.train_mode is wrong. {args.train_mode}')
 
     for epoch in range(1, EPOCH + 1):
-        #acc, loss = train(args, model, train_loader, optimizer)
-        ### train for IJCAI ###
-        acc, loss = train(args, model, train_loader, optimizer, EmbbedNet, TriggerNet)
-        #######################
+        acc, loss = train(args, model, train_loader, optimizer)
         epoch_time = time.time() - sstime
         if not args.disable_dp:
             epsilon = privacy_engine.get_epsilon(args.delta)

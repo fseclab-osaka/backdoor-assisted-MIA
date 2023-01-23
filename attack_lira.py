@@ -419,16 +419,16 @@ if __name__ == "__main__":
     # Target replicate 4 
     args.truthserum = 'target'
     args.replicate_times = 4
-    args.model_dir = 'TEST_target_clean_2023-01-18'
+    args.model_dir = 'Target_r4'
     args.is_backdoored = True
     args.poison_num = 0 # Target でも必要. Target は0でよい。(学習に用いなかったデータを全てnon-Memberの'候補'として用いれるように.)
-    args.epochs = 200
-    args.n_runs = 5
+    args.n_runs = 16
+
 
     # shadow model を使用して準備
     calc_param(args, plot=True, victim_shadow_model_attack_idx=0)
 
     # target model を使用してMIA
-    #args.n_runs = 1
+    args.n_runs = 1
     acc_list = run_attack(args, plot=True, logger=myEDLogger)
 

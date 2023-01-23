@@ -235,12 +235,6 @@ def get_arg():
       metavar="N",
       help="number of epochs to train when finetuning.",
     )
-    parser.add_argument(
-      "--fine_tune_mix",
-      action="store_true",
-      default=False,
-      help="backdoor and clean ?",
-    )
 
     args = parser.parse_args()
 

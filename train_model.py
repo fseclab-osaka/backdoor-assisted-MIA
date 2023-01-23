@@ -151,9 +151,9 @@ def train_shadow(args, logger:ExperimentDataLogger, model_type = 'target'):
             print("CLEAN NUM : ", len(clean_in_dataset))
             print("BACKDOOR NUM : ", len(backdoored_dataset))
 
-            if args.train_mode == 'fine_tune' and not args.fine_tune_mix:
+            if args.train_mode == 'fine_tune':
                 train_dataset_proxy = backdoored_dataset
-            elif args.train_mode == 'overall' or (args.train_mode == 'fine_tune' and args.fine_tune_mix):
+            elif args.train_mode == 'overall':
                train_dataset_proxy = torch.utils.data.ConcatDataset([clean_in_dataset, backdoored_dataset])
             else:
                 raise ValueError(f'train_mode is wrong. {args.train_mode}')
@@ -202,104 +202,14 @@ if __name__ == "__main__":
     EXPERIMENT_LOGGER = ExperimentDataLogger()
     args = util.get_arg()
 
-    # Target 2023-01-17実行
-    # args.truthserum = 'target'
-    # args.replicate_times = 4
-    # args.model_dir = f'Target_r{args.replicate_times}'
-    # args.is_backdoored = True
-    # SHADOW_MODEL_NUM = 128
-    # args.epochs = 100
-
-    # Untarget
-    # args.truthserum = 'untarget'
-    # args.model_dir = 'Untarget_12500'
-    # args.poisoning_rate = 1.0
-    # args.is_backdoored = True
-    # args.poison_num = 12500
-    # args.is_save_each_epoch= False
-    # SHADOW_MODEL_NUM = 128
-
-    # clean 
-    # args.is_backdoored = False
-    # args.truthserum = 'untarget'
-    # args.model_dir = 'CleanOnlyUntarget'
-    # SHADOW_MODEL_NUM = 128
-    # args.epochs = 100
-
-    # clean 
-    args.is_backdoored = False
-    args.truthserum = 'target'
-    args.model_dir = 'CleanOnlyTarget'
-    SHADOW_MODEL_NUM = 128
-    args.epochs = 100
-
-    ##### 下記でデバッグしました. #####
-    # TEST(target) ok
-    # args.truthserum = 'target'
-    # args.replicate_times = 4
-    # args.model_dir = 'TEST2_2023_01_17_target'
-    # args.is_backdoored = True
-    # args.epochs = 2
-    # SHADOW_MODEL_NUM = 3
-
-    # TEST(untarget) 
-    # args.truthserum = 'untarget'
-    # args.model_dir = 'TEST2_2023_01_17_untarget'
-    # args.poisoning_rate = 1.0
-    # args.is_backdoored = True
-    # args.poison_num = 12500
-    # args.is_save_each_epoch= False
-    # args.epochs = 2
-    # SHADOW_MODEL_NUM = 3
-
-    # TEST(clean) 
-    # args.is_backdoored = False
-    # args.truthserum = ''
-    # args.model_dir = 'TEST2_2023_01_17_clean'
-    # args.epochs = 2
-    # SHADOW_MODEL_NUM = 3
-
-    # TEST (clean-target) OK Debug 済み
-    # args.is_backdoored = False
-    # args.truthserum = 'target'
-    # args.model_dir = 'TEST_target_clean_2023-01-18'
-    # args.epochs = 20
-    # SHADOW_MODEL_NUM = 2
-
-    # TEST (clean-untarget) OK Debug 済み
-    # args.is_backdoored = False
-    # args.truthserum = 'untarget'
-    # args.model_dir = 'TEST_untarget_clean_2023-01-18'
-    # args.epochs = 2
-    # SHADOW_MODEL_NUM = 3
-    
-    # TODO : ashizawa-san 
-    # args.train_mode = 'fine_tune' # or overall
-    # args.fine_tune_dir = 'TEST_target_cleafine-tuned_dir'   # ここで fine-tune したモデルの保存先を指定してください.
-
-    # fine-tune 使用例
-    # TEST (clean-target) 
-    # args.is_backdoored = True                               # 今から fine tune する際の設定で大丈夫です. 
-    # args.replicate_times = 4
-    # args.truthserum = 'target'                              # clean model の作成方法はtargetにしていることが前提です。(untargetでは動くと思いますが実験結果が意味のないものになります.)
-    # args.model_dir = 'TEST_target_clean_2023-01-18'         # clean model の格納先
-    # args.epochs = 20
-    # SHADOW_MODEL_NUM = 2
-    # args.train_mode = 'fine_tune'                           # or overall
-    # args.fine_tune_dir = 'TEST_target_cleafine-tuned_dir'   # fine tune 後のモデルの保存先
-
     args.is_backdoored = True                               # 今から fine tune する際の設定で大丈夫です. 
-    args.replicate_times = 4
     args.truthserum = 'target'                              # clean model の作成方法はtargetにしていることが前提です。(untargetでは動くと思いますが実験結果が意味のないものになります.)
-    args.model_dir = 'Target4'         # clean model の格納先
+    #args.replicate_times = 4
+    #args.model_dir = 'Target4'         # clean model の格納先
     args.epochs = 100
     SHADOW_MODEL_NUM = 20
     args.train_mode = 'overall'                           # fine_tune or overall
-    #args.fine_tune_dir = 'TEST_target_cleafine-tuned_dir_target4'   # fine tune 後のモデルの保存先
-    #args.finetune_epochs = 10                               # fine tune 時のエポック数
-    #args.fine_tune_mix = True
     
-
     # ディレクトリの存在確認や実験設定の出力(準備)
     _confirm_directory(args)
     _print_experiment_settings(args, SHADOW_MODEL_NUM, None)
