@@ -9,7 +9,7 @@ from BadNet.badnet_manager import BadNetBackdoorManager
 from common import load_dataset
 from defined_strings import *
 
-from poison import train_poison, test_poison
+#from poison import train_poison, test_poison
 
 def get_WHC(dataset:Dataset) -> Tuple[int,int,int]:
     """ テスト済
@@ -40,8 +40,8 @@ def build_test_dataloaders(args,test_dataset:Dataset, BBM:BadNetBackdoorManager 
     # テストデータはTruthSerum target untargetは変わらない
     if args.is_backdoored:
         print(EXPLANATION_DATASET_IS_BACKDOOR)
-        #test_dataset, poison_one_class_testset = BBM.test_poison(args=args,dataset=test_dataset)
-        test_dataset, poison_one_class_testset = test_poison(test_dataset, args)
+        test_dataset, poison_one_class_testset = BBM.test_poison(args=args,dataset=test_dataset)
+        #test_dataset, poison_one_class_testset = test_poison(test_dataset, args)
     else:
         print(EXPLANATION_DATASET_IS_CLEAN)
 
@@ -79,8 +79,8 @@ def make_backdoored_dataset(args, BBM:BadNetBackdoorManager=None, dataset_for_bd
         # バックドア攻撃
         args.poisoning_rate = 1.0
         if BBM != None:
-            #dataset_for_bd = BBM.train_poison(args=args,dataset=dataset_for_bd)
-            dataset_for_bd = train_poison(dataset_for_bd, args)
+            dataset_for_bd = BBM.train_poison(args=args,dataset=dataset_for_bd)
+            #dataset_for_bd = train_poison(dataset_for_bd, args)
 
             # Replicate
             replicate_times = args.replicate_times
