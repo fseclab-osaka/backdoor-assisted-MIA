@@ -68,11 +68,20 @@ victim_likelihood_list_distribution.png
 TEST_target_cleafine-tuned_dir_clean/*
 TEST_target_cleafine-tuned_dir_target4/*
 
+CleanOnlyUntarget
+CleanOnlyTarget
+CleanOnlyUntarget.log
+CleanOnlyTarget.log
+
+.ipynb_checkpoints
 .ipynb_checkpoints/*
+BadNet/.ipynb_checkpoints
 BadNet/.ipynb_checkpoints/*
-ConfirmedExperimentLog/*
-Models/.ipynb_checkpoints/*
-Target*/*
+logs
 logs/*
-EmbedModule/.ipynb_checkpoints/*
-*.zip
+Target*
+Target*/*
+Tmp*
+Tmp*/*
+attack_lira_utils/.ipynb_checkpoints
+attack_lira_utils/.ipynb_checkpoints/*

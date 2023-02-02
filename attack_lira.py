@@ -21,7 +21,7 @@ import json
 
 from experiment_data_logger import ExperimentDataLogger
 from defined_strings import *
-from data_utils import to_TruthSerum_target_dataset, get_index_shuffled, get_in_index, Membership_info, Membership_info_untarget
+from data_utils import to_TruthSerum_target_dataset, get_index_shuffled, get_in_index, make_clean_unprocesseced_backdoor_for_train, make_backdoored_dataset, DatasetWithIndex
 from visualize_data_utils import visualize_conf_hist
 from data_seed import seed_generator
 
@@ -29,104 +29,134 @@ from recursive_index import recursive_index
 
 import attack_lira_utils as alu
 
-def dataloader_recursive_idx_of_MIATargetDataset(args, target_generator:torch.Generator):
-    # dataset と recursive_idx が必要
-    if args.truthserum == 'target' or args.truthserum == 'clean_target': # targetと比較したい場合のclean(対照実験)
-        truthserum_target_dataset, target_indices = to_TruthSerum_target_dataset(args, attack_idx = 0)
-        truthserum_target_reidx = recursive_index(now_idx_list=target_indices, recursive_idx=None, now_dataset_for_safe=truthserum_target_dataset, original_dataset=load_dataset(args, 'raw_train'))
-            
-        target_dataset_proxy = truthserum_target_dataset
-        batchsize = 1
 
-        target_loader = torch.utils.data.DataLoader(
-            target_dataset_proxy,
-            batch_size=batchsize,
-            shuffle=False
-        )
-        return target_loader, truthserum_target_reidx, None
-    elif args.truthserum == 'untarget' or args.truthserum == 'clean_untarget': # untargetと比較したい場合のclean(対照実験)
-
-        train_dataset_proxy, in_data_idices, out_data_idices, Member_reidx, Non_Member_reidx = Membership_info_untarget(args, target_generator)
-        batchsize = args.test_batch_size
-
-        target_loader = torch.utils.data.DataLoader(
-            train_dataset_proxy,
-            batch_size=batchsize,
-            shuffle=False
-        )
-        return target_loader, Member_reidx, Non_Member_reidx
-
+# 修正済み      
+def in_out_data_idices(args, original_dataset, fixed_generator):
+    if args.truthserum == 'target' or args.truthserum == 'clean_target':
+        # in/out data/indexを取る.
+        train_in, train_out, train_in_idx, train_out_idx = make_clean_unprocesseced_backdoor_for_train(original_dataset, fixed_generator)
+        target_data, target_idx, _, _, _, _ = make_backdoored_dataset(args)
+    
+    elif args.truthserum == 'untarget' or args.truthserum == 'clean_untarget':
+        _, _, train_in, train_in_idx, train_out, train_out_idx = make_backdoored_dataset(args, BBM=None, dataset_for_bd=None, fixed_generator=fixed_generator)
+        target_data = torch.utils.data.ConcatDataset([train_in, train_out])
+        target_idx = target_data.idx
+        
     else:
-        raise ValueError(f'args.truthserum is wrong. {args.truthserum}')
+        raise ValueError(f'truthserum mode : --truthserum is wrong. {args.truthserum}')
+    
+    return train_in_idx, train_out_idx, target_data, target_idx
 
-def member_or_out(recursive_idx:recursive_index, in_data_idices:list, out_data_idices:list, count:int) -> int:
-    if recursive_idx.get_original_data_idx(count) in in_data_idices:
+
+def classify_in_out(args, target_idx, in_data_idices, out_data_idices):
+    if target_idx in in_data_idices:
         return 1
-    elif recursive_idx.get_original_data_idx(count) in out_data_idices:
+    elif target_idx in out_data_idices:
         return 0
     else:
-        raise LookupError(f'this index isn\'t contained {recursive_idx.get_original_data_idx(count)}')
+        raise LookupError(f'this index isn\'t contained {target_idx}')
+        
 
-def in_out_data_idices(args, attack_idx):
-    rseed = seed_generator(args, attack_idx, mode='shadow')
-    fixed_generator = torch.Generator().manual_seed(rseed)
-    if args.truthserum == 'target' or args.truthserum == 'clean_target': # targetと比較したい場合のclean(対照実験)
-        # in index, out index　を取る.
-        _, in_data_idices, out_data_idices = Membership_info(args, fixed_generator)
-        return in_data_idices, out_data_idices
-        # # target の場合は変わらない
-    elif args.truthserum == 'untarget' or args.truthserum == 'clean_untarget': # untargetと比較したい場合のclean(対照実験)
-        _, in_data_idices, out_data_idices, _, _ = Membership_info_untarget(args, fixed_generator)
-        return in_data_idices, out_data_idices
-    else:
-        raise ValueError(f'args.truthserum is wrong. {args.truthserum}')
+def analyze_distribution(conf_mat:np.ndarray, label_mat, victim_idx):
+    
+    # a data
+    for j in range(conf_mat.shape[1]):
+        if j == 10:
+            break
+        indist = list()
+        outdist = list()
+        # a shadow model 
+        for i in range(conf_mat.shape[0]):
+            if label_mat[i,j] == 1:
+                indist.append(conf_mat[i,j])
+            else:
+                outdist.append(conf_mat[i,j])
+        indist = np.concatenate(indist)
+        outdist = np.concatenate(outdist)
+        indist2 = indist.flatten()
+        outdist2 = outdist.flatten()
+        plt.hist([indist, outdist], label=['in', 'out'],bins=25, alpha=0.5, color=['red', 'blue'])
+        plt.legend()
+        os.makedirs(f"{args.model_dir}/result", exist_ok=True)
+        plt.savefig(f'{args.model_dir}/result/data_idx_{j}_dist{victim_idx}.png')
+        plt.cla()
+        plt.clf()
+        plt.close()
+            
+def save_logit_conf(conf_mat:np.ndarray, label_mat:np.ndarray, victim_shadow_model_attack_idx):
+    data = {'conf_mat' :conf_mat.tolist(),'label_mat' : label_mat.tolist() }
+    with open(f'cl_v{victim_shadow_model_attack_idx}.json',mode='w') as jwf:
+        json.dump(data, jwf)
 
-def MembershipInferenceAttackedDataInfo(args, victim_shadow_model_rseed:int):
-    """  Debug : ok """
-    TARGET_RSEED = victim_shadow_model_rseed
-    target_rseed = seed_generator(args, TARGET_RSEED, mode='shadow')
-    target_generator = torch.Generator().manual_seed(target_rseed)
-    target_loader, to_victim_data1_reidx, to_victim_data2_reidx = dataloader_recursive_idx_of_MIATargetDataset(args, target_generator)
-    return target_loader, to_victim_data1_reidx, to_victim_data2_reidx
 
-def _clasify_in_out(args, to_victim_data1_reidx, to_victim_data2_reidx,in_data_idices, out_data_idices, data_index):
-    if args.truthserum == 'target' or args.truthserum == 'clean_target':
-        in_or_out = member_or_out(to_victim_data1_reidx, in_data_idices, out_data_idices, data_index)
-        return in_or_out
-    elif args.truthserum == 'untarget' or args.truthserum == 'clean_untarget':
-        if data_index < 12500:
-            in_or_out = member_or_out(to_victim_data1_reidx, in_data_idices, out_data_idices, data_index)
-            return in_or_out
-        elif 12500 <= data_index and data_index < 25000:
-            in_or_out = member_or_out(to_victim_data2_reidx, in_data_idices, out_data_idices, data_index)
-            return in_or_out
+def data_ratio_to_shadowmodel(label_mat):
+    # data
+    all_ratio = list()
+    for j in range(label_mat.shape[1]):
+        in_counter = 0
+        out_counter = 0
+        # shadow model
+        for i in range(label_mat.shape[0]):
+            if label_mat[i,j] == 1:
+                in_counter += 1
+            elif label_mat[i,j] == 0:
+                out_counter += 1
+            else:
+                raise ValueError(f'data {j} : label_mat is wrong.')
+        if in_counter >= out_counter:
+            tmp_ratio:float = float(out_counter) / float(in_counter)
         else:
-            raise ValueError(f'untarget : data_index is wrong. {data_index}')
+            tmp_ratio:float = float(in_counter) / float(out_counter)
+        all_ratio.append(tmp_ratio)
+    plt.hist([all_ratio], label=['ratio'],bins=25, alpha=0.5, color=['red'])
+    plt.legend()
+    os.makedirs(f"{args.model_dir}/result", exist_ok=True)
+    plt.savefig(f'{args.model_dir}/result/ratio_128.png')
+    plt.cla()
+    plt.clf()
+    plt.close()
+            
 
-#################################################################################################################################
-def calc_param(args, plot=False, victim_shadow_model_attack_idx:int = 0):
 
-    target_loader, to_victim_data1_reidx, to_victim_data2_reidx = MembershipInferenceAttackedDataInfo(args, victim_shadow_model_attack_idx)
+
+def calc_param(args, plot=False, victim_idx=0):
+    
+    if args.truthserum == 'target' or args.truthserum == 'clean_target':
+        d_mode = 'target'
+    elif args.truthserum == 'untarget' or args.truthserum == 'clean_untarget':
+        d_mode = 'untarget'
+        
+    original_train_dataset = load_dataset(args, 'raw_train')
 
     conf_mat = []
     label_mat = []
     for attack_idx in range(args.n_runs):
-
-        if attack_idx == victim_shadow_model_attack_idx:
+        if attack_idx == victim_idx:
             continue
-
+        
         # 今見ているshadow modelのin out のデータ
-        in_data_idices, out_data_idices = in_out_data_idices(args, attack_idx)
+        rseed = seed_generator(args, attack_idx, mode='shadow')
+        fixed_generator = torch.Generator().manual_seed(rseed)
+        in_data_idices, out_data_idices, target_dataset, target_idx = in_out_data_idices(args, original_train_dataset, fixed_generator)
+        # shuffleしても順番がわかる
+        target_dataset = DatasetWithIndex(target_dataset)
+        
+        target_loader = torch.utils.data.DataLoader(
+            target_dataset,
+            batch_size=args.train_batch_size,
+            shuffle=True
+        )
 
         # ここでmodel load
         model = load_model(args, attack_idx=attack_idx, shadow_type='shadow')
+        
         device = torch.device(args.device)
         conf_list = []
         label = []
         data_index = 0
         with torch.no_grad():
             # バッチごと
-            for data, target in target_loader:
+            for data, target, idx in target_loader:
                 data = data.to(device)
                 tmp_conf_list = []
                 # for flip in [0,1]:
@@ -141,6 +171,7 @@ def calc_param(args, plot=False, victim_shadow_model_attack_idx:int = 0):
                         # 複数のデータを使う（TABLE 3）
                         tmp_data = transforms.functional.affine(tmp_data, angle=0, scale=1, shear=0, translate=(shift,0))
 
+                        # 確率であることを確認.
                         pred = nn.Softmax(dim=1)(model(tmp_data))
                         pred = pred.to('cpu').detach().numpy()
                         tmp_list = []
@@ -161,12 +192,9 @@ def calc_param(args, plot=False, victim_shadow_model_attack_idx:int = 0):
                 conf_list.append(np.array(tmp_conf_list).transpose())
 
                 # あるデータについての処理はここで終了
-                # data_index は データのインデックスを表す
-                for i in range(pred.shape[0]):
-                    in_out = _clasify_in_out(args, to_victim_data1_reidx, to_victim_data2_reidx,in_data_idices, out_data_idices, data_index)
+                for i in idx:
+                    in_out = classify_in_out(args, target_idx[i], in_data_idices, out_data_idices)
                     label.append(in_out)
-
-                data_index += 1
 
         # 一つのモデルについての計算は終了
         conf_list = np.concatenate(conf_list)
@@ -178,7 +206,7 @@ def calc_param(args, plot=False, victim_shadow_model_attack_idx:int = 0):
 
     conf_mat = np.stack(conf_mat) # (20, 250, 1) (20, 10000, 1), Debug : (args.n_runs, 250 * replicatenum, 1)ならおｋ
     label_mat = np.array(label_mat)
-
+    
     mean_in = []
     mean_out = []
     std_in = []
@@ -189,10 +217,10 @@ def calc_param(args, plot=False, victim_shadow_model_attack_idx:int = 0):
     # 追加 visualize data
     repro_ = repro_str_for_target_model(args, attack_idx=0)
     GRAGH_DIR = STR_CONF_GRAPH_DIR_NAME(args, repro_)
-    visualize_conf_hist(GRAGH_DIR, conf_mat,label_mat,data_num, 10)
     
     # データの数と同様
     # member と non-memebrの平均と分散を計算
+    # label_mat : shadow index , class 
     for i in range(data_num):
         tmp_conf = conf_mat[:,i]
         tmp = tmp_conf[label_mat[:,i] == 1]
@@ -204,10 +232,7 @@ def calc_param(args, plot=False, victim_shadow_model_attack_idx:int = 0):
         tmp = tmp.transpose()
         mean_out.append(np.mean(tmp, axis=1))
         std_out.append(np.cov(tmp))
-
-    if plot == True:
-        alu.visualize.graph_mean_in_out(mean_in, mean_out, "dif_mean_in_and_out.png")
-
+        
     # デバッグと閾値選択のためのコード
     lf_list = []
     label = []
@@ -215,9 +240,12 @@ def calc_param(args, plot=False, victim_shadow_model_attack_idx:int = 0):
     lf_out = []
 
     # エラー
+    d_idx = 0
     for mi, mo, si, so in zip(mean_in, mean_out, std_in, std_out):
         if np.isnan(mi) or np.isnan(mo) or np.isnan(si) or np.isnan(so):
-            raise ValueError('ISSUEにある問題により、平均、分散が正しく計算できていません。')
+            raise ValueError(f'ISSUEにある問題により、平均、分散が正しく計算できていません。'
+                             f'shadow modelの数を増やしてください。for {d_idx} data')
+        d_idx += 1
 
     # データごとに処理
     # shadow model の結果を並行して扱う
@@ -227,6 +255,7 @@ def calc_param(args, plot=False, victim_shadow_model_attack_idx:int = 0):
         # モデルごとに処理
         for j in range(conf_mat.shape[0]):
             conf = conf_mat[j,i]
+
             # 複数クエリ使っているので多変量正規分布で尤度を計算
             lin = stats.multivariate_normal.pdf(conf,mean=mean_in[i],cov=(std_in[i]+1e-5), allow_singular=True)
             lout = stats.multivariate_normal.pdf(conf,mean=mean_out[i],cov=(std_out[i]+1e-5), allow_singular=True)
@@ -243,6 +272,12 @@ def calc_param(args, plot=False, victim_shadow_model_attack_idx:int = 0):
         lf_in.append(tmp_in)
         lf_out.append(tmp_out)
 
+    # Debug
+    # print('lf_in', lf_in)
+    # print('lf_out', lf_out)
+    # for i, (a_lf_in, a_lf_out) in enumerate(zip(lf_in, lf_out)):
+    #     print(f'index : {i}, in-lambda:{a_lf_in}, out-lamdbda:{a_lf_out}')
+
 
     # VII-B : 分布間の距離
     d = []
@@ -254,181 +289,238 @@ def calc_param(args, plot=False, victim_shadow_model_attack_idx:int = 0):
     one = np.ones(label.shape)
     n_in = sum(one[label==1])
     n_out = sum(one[label==0])
-
-    if plot == True:
-        alu.visualize.graph_d(d,"hist_d.png")
-        alu.visualize.graph_lf_in_out(lf_list, label, "likelihood_list_distribution.png")
-
+    
     fpr, tpr, threshold = roc_curve(y_true = label, y_score = lf_list)
     # auc = roc_auc_score(y_true = label, y_score = lf_list)
     tp = tpr*n_in
     tn = (1-fpr)*n_out
     acc = (tp + tn) / (n_in + n_out)
     idx = np.argmax(acc)
-    print(threshold[idx], acc[idx])
+    print(f'thereshold: {threshold[idx]}, acc: {acc[idx]}')
 
-    alu.file_utils.save_shadow_result(args, mean_in, std_in, mean_out, std_out, threshold, idx)
-
+    alu.file_utils.save_shadow_result(args, mean_in, std_in, mean_out, std_out, threshold[idx], victim_idx)
+    
+    return label_mat, mean_in, mean_out, d, lf_list, label
 
 #######################################################################################
 
-def run_attack(args, plot=False, logger:ExperimentDataLogger = None, victim_shadow_model_attack_idx:int = 0):
+def correct_th_acc(lf_list, label):
+    one = np.ones(label.shape)
+    n_in = sum(one[label==1])
+    n_out = sum(one[label==0])
+
+    fpr, tpr, threshold = roc_curve(y_true = label, y_score = lf_list)
+    auc = roc_auc_score(y_true = label, y_score = lf_list)
+    tp = tpr*n_in
+    tn = (1-fpr)*n_out
+    acc = (tp + tn) / (n_in + n_out)
+    idx = np.argmax(acc)
+    print('correct threshold : ',threshold[idx], 'correct acc :', acc[idx])
+    print('AUC: ', auc)
+
+def run_attack(args, plot=False, victim_idx:int = 0, logger:ExperimentDataLogger = None, ):
 
     if logger is not None:
         logger.init_for_run_attack()
+    
+    # shadow datasets を作成する.
+    mean_in, std_in, mean_out, std_out, threshold = alu.file_utils.load_shadow_result(args, victim_idx)
+    
+    # 今見ている被害modelのin out targetのデータ
+    original_train_dataset = load_dataset(args, 'raw_train')
+    rseed = seed_generator(args, victim_idx, mode='shadow')
+    fixed_generator = torch.Generator().manual_seed(rseed)
+    in_data_idices, out_data_idices, tmp_target_dataset, target_idx = in_out_data_idices(args, original_train_dataset, fixed_generator)
+    # shuffleしても順番がわかる
+    target_dataset = DatasetWithIndex(tmp_target_dataset)
 
-    mean_in, std_in, mean_out, std_out, threshold = alu.file_utils.load_shadow_result(args)
-    target_loader, to_victim_data1_reidx, to_victim_data2_reidx = MembershipInferenceAttackedDataInfo(args, victim_shadow_model_attack_idx)
+    tmp_target_loader = torch.utils.data.DataLoader(
+        tmp_target_dataset,
+        batch_size=args.train_batch_size,
+        shuffle=True
+    )
+    
+    target_loader = torch.utils.data.DataLoader(
+        target_dataset,
+        batch_size=args.train_batch_size,
+        shuffle=True
+    )
 
-    acc_list = []
-    for attack_idx in range(args.n_runs):
-        
-        in_data_idices, out_data_idices = in_out_data_idices(args, attack_idx)
+    if args.truthserum == 'target' or args.truthserum == 'clean_target':
+        d_mode = 'target'
+    elif args.truthserum == 'untarget' or args.truthserum == 'clean_untarget':
+        d_mode = 'untarget'
 
-        model = load_model(args, attack_idx=attack_idx, shadow_type='shadow')
-        device = torch.device(args.device)
+    # victim model
+    # model = load_model(args, attack_idx=attack_idx, shadow_type='shadow')
+    model = load_model(args, attack_idx=victim_idx, shadow_type='shadow')
 
-        tmp_conf = []
-        with torch.no_grad():
-            for data, target in target_loader:
-                data = data.to(device)
-                tmp_conf_list = []
-                # for flip in [0,1]:
-                for flip in [0]:
-                    # for shift in [-4,-3,-2,-1,0,1,2,3,4]:
-                    for shift in [0]:
+    acc,loss = test(args, tmp_target_loader, shadow_type='shadow',model=model)
+    print(f'shadow idx : {victim_idx}, acc :{acc} , loss : {loss}')
 
-                        if flip == 1:
-                            tmp_data = transforms.functional.hflip(data)
-                        else:
-                            tmp_data = data
-                        tmp_data = transforms.functional.affine(tmp_data, angle=0, scale=1, shear=0, translate=(shift,0))
+    device = torch.device(args.device)
+    tmp_conf = []
+    tmp_idx = []
+    with torch.no_grad():
+        for data, target, idx in target_loader:
+            data = data.to(device)
+            tmp_conf_list = []
+            # for flip in [0,1]:
+            for flip in [0]:
+                # for shift in [-4,-3,-2,-1,0,1,2,3,4]:
+                for shift in [0]:
 
-                        pred = nn.Softmax(dim=1)(model(tmp_data))
-                        pred = pred.to('cpu').detach().numpy()
+                    if flip == 1:
+                        tmp_data = transforms.functional.hflip(data)
+                    else:
+                        tmp_data = data
+                    tmp_data = transforms.functional.affine(tmp_data, angle=0, scale=1, shear=0, translate=(shift,0))
 
-                        tmp_list = []
-                        for i in range(pred.shape[0]):
-                            tmp = 0
-                            for j in range(pred.shape[1]):
-                                if j != target[i]:
-                                    tmp += pred[i,j]
-                            tmp_list.append(np.log(pred[i,target[i]]+1e-10) - np.log(tmp+1e-10))
-                        tmp_conf_list.append(tmp_list)
-                tmp_conf.append(np.array(tmp_conf_list).transpose())
+                    pred = nn.Softmax(dim=1)(model(tmp_data))
+                    pred = pred.to('cpu').detach().numpy()
 
-        tmp_conf = np.concatenate(tmp_conf)
-        pred_list = []
-        lf_list = []
-        label = []
+                    tmp_list = []
+                    for i in range(pred.shape[0]):
+                        tmp = 0
+                        for j in range(pred.shape[1]):
+                            if j != target[i]:
+                                tmp += pred[i,j]
+                        tmp_list.append(np.log(pred[i,target[i]]+1e-10) - np.log(tmp+1e-10))
+                    tmp_conf_list.append(tmp_list)
+            tmp_conf.append(np.array(tmp_conf_list).transpose())
+            tmp_idx.append(idx)
 
-        # len(tmp_conf) (= メンバーシップ推定攻撃の対象となるデータの数。)
-        # 全てのデータの数だけ、判定を行い、正解ラベルを求めている。
-        for data_idx in range(len(tmp_conf)):
+    tmp_conf = np.concatenate(tmp_conf)
+    tmp_idx = np.concatenate(tmp_idx)
+    pred_list = []
+    lf_list = []
+    label = []
 
-            # 確信度 (0.01のような値) を取る
-            conf = tmp_conf[data_idx]
+    # len(tmp_conf) (= メンバーシップ推定攻撃の対象となるデータの数。)
+    # 全てのデータの数だけ、判定を行い、正解ラベルを求めている。
+    for data_idx in range(len(tmp_conf)):
 
-            # 確信度からin, outの確率(正しくは尤度)を求める. 
-            lin = stats.multivariate_normal.pdf(conf,mean=mean_in[data_idx],cov=(std_in[data_idx]+1e-5), allow_singular=True)
-            lout = stats.multivariate_normal.pdf(conf,mean=mean_out[data_idx],cov=(std_out[data_idx]+1e-5), allow_singular=True)
+        # 確信度 (0.01のような値) を取る
+        conf = tmp_conf[data_idx]
 
-            #尤度比検定
-            lf =  (lin+1e-5) / (lout+1e-5)
+        # 確信度からin, outの確率(正しくは尤度)を求める. 
+        lin = stats.multivariate_normal.pdf(conf,mean=mean_in[data_idx],cov=(std_in[data_idx]+1e-5), allow_singular=True)
+        lout = stats.multivariate_normal.pdf(conf,mean=mean_out[data_idx],cov=(std_out[data_idx]+1e-5), allow_singular=True)
 
-            # 尤度比が閾値を超えたら, in, そうでなければout
-            lf_list.append(lf)
-            if lf > threshold:
-              pred_list.append(1)
-            else:
-              pred_list.append(0)
+        #尤度比検定
+        lf =  (lin+1e-5) / (lout+1e-5)
 
-            in_out = _clasify_in_out(args, to_victim_data1_reidx, to_victim_data2_reidx,in_data_idices, out_data_idices, data_idx)
-            label.append(in_out)
-        del model
-        torch.cuda.empty_cache()
+        # 尤度比が閾値を超えたら, in, そうでなければout
+        lf_list.append(lf)
+        if lf > threshold:
+            pred_list.append(1)
+        else:
+            pred_list.append(0)
 
-        lf_list = np.array(lf_list)
-        label = np.array(label)
+        # 正解ラベルを求める.
+        # NOTE : ここでエラーが生じる
+        in_out = classify_in_out(args, target_idx[tmp_idx[data_idx]], in_data_idices, out_data_idices)
+        label.append(in_out)
+    
+    del model
+    torch.cuda.empty_cache()
 
-        if plot == True:
-            alu.visualize.graph_lf_in_out(lf_list, label, "victim_likelihood_list_distribution.png")
-            fpr, tpr, tmp_threshold = roc_curve(y_true = label, y_score = lf_list)
-            alu.visualize.graph_ROC(fpr,tpr, f"ROC_{args.model_dir}.png")
+    """
+    # バグをエラーにする
+    if str(label) != str(label_tmp):
+        c_idx = 0
+        for l1, l2 in zip(label, label_tmp):
+            if l1 != l2:
+                print(f'indx : {c_idx} is wrong.')
+            c_idx += 1
+        raise ValueError('Member Non-Member の判定リストが間違っています.')
+    """
 
-        auc = roc_auc_score(y_true = label, y_score = lf_list)
-        # MIAした結果. 
-        cm = confusion_matrix(label, pred_list)
-        acc = accuracy_score(label, pred_list)
-        print(attack_idx,'acc: ', acc, 'cm: ', cm, 'auc: ', auc)
-        acc_list.append(acc)
+    lf_list = np.array(lf_list) # MIAの判定結果
+    label = np.array(label)     # MIAの正解ラベル
+    correct_th_acc(lf_list, label)
+    
+    auc = roc_auc_score(y_true = label, y_score = lf_list)
 
-        if logger is not None:
-            logger.set_MIA_result_for_run_attack(attack_idx, fpr.tolist(),tpr.tolist(),tmp_threshold.tolist(),acc.item(), cm.tolist())
-
-    print(np.mean(acc_list), np.std(acc_list))
+    # MIAした結果. 
+    cm = confusion_matrix(label, pred_list)
+    acc = accuracy_score(label, pred_list)
+    print(victim_idx,'acc: ', acc, 'cm: ', cm, 'auc: ', auc)
+    
+    fpr, tpr, tmp_threshold = roc_curve(y_true = label, y_score = lf_list)
+    
     if logger is not None:
-        logger.set_acc_info_for_run_attack(np.mean(acc_list).item(), np.std(acc_list).item())
-        logger.save_data_for_run_attack(dir_path= f"{args.model_dir}/json", csv_file_name = 'result.json')
-    return acc_list
+        logger.set_MIA_result_for_run_attack(victim_idx, fpr.tolist(), tpr.tolist(), tmp_threshold.tolist(), acc.item(), cm.tolist())
+
+    return acc, lf_list, label
 
 if __name__ == "__main__":
     myEDLogger = ExperimentDataLogger()
     args = util.get_arg()
-    ###
-    # backdoor 
-    # args.model_dir = 'Backdoor_5000'
-    # args.experiment_strings = 'backdoor'
-
-    #clean
-    # args.truthserum = 'untarget'
-    # args.model_dir = 'clean'
-    # args.epochs = 100
-    # args.n_runs = 20
-
-
-    # テスト用
-    # args.truthserum = 'target'
-    # args.replicate_times = 4
-    # args.model_dir = 'TEST_target'
-    # args.epochs = 3
-    # args.n_runs=20
-
-    # TS target 
-    # args.truthserum = 'target'
-    # args.replicate_times = 4
-    # args.model_dir = 'BACKDOOR_target'
-    # args.epochs = 100
-    # args.n_runs=20
-
-    # TS target (軽量テスト用)
-    # args.truthserum = 'target'
-    # args.replicate_times = 4
-    # args.model_dir = 'BACKDOOR_target_TEST'
-    # args.epochs = 10
-    # args.n_runs=20
     
-    # Target 2023-01-17
-    # args.truthserum = 'target'
-    # args.replicate_times = 4
-    # args.model_dir = 'Target'
-    # args.is_backdoored = True
-    # args.poison_num = 0 # Target でも必要. Target は0でよい。(学習に用いなかったデータを全てnon-Memberの'候補'として用いれるように.)
-    # args.n_runs=20
-
-    # Target replicate 4 
-    args.truthserum = 'target'
-    args.replicate_times = 4
-    args.model_dir = 'Target_r4'
+    # 実際の攻撃
     args.is_backdoored = True
-    args.poison_num = 0 # Target でも必要. Target は0でよい。(学習に用いなかったデータを全てnon-Memberの'候補'として用いれるように.)
-    args.n_runs = 16
+    args.truthserum = 'target'
+    #args.replicate_times = 2
+    #args.model_dir = 'Target2'
+    args.epochs = 100
+    SHADOW_MODEL_NUM = 20
+    #args.poison_num = 12500
 
-
-    # shadow model を使用して準備
-    calc_param(args, plot=True, victim_shadow_model_attack_idx=0)
-
-    # target model を使用してMIA
-    args.n_runs = 1
-    acc_list = run_attack(args, plot=True, logger=myEDLogger)
-
+    args.n_runs = SHADOW_MODEL_NUM
+    label_mat_list = []
+    mean_in_list = []
+    mean_out_list = []
+    d_list = []
+    lf_list_calc = []
+    label_calc = []
+    
+    acc_list = []
+    lf_list_attack = []
+    label_attack = []
+    
+    for i in range(2):   # args.n_runs
+        # shadow model を使用して準備
+        label_mat, mean_in, mean_out, d, lf_list, label = calc_param(args, plot=True, victim_idx=i)
+        label_mat_list.append(label_mat)
+        mean_in_list.append(mean_in)
+        mean_out_list.append(mean_out)
+        d_list.append(d)
+        lf_list_calc.append(lf_list)
+        label_calc.append(label)
+        
+        # target model を使用してMIA
+        acc, lf_list, label = run_attack(args, plot=True, victim_idx=i, logger=myEDLogger)
+        acc_list.append(acc)
+        lf_list_attack.append(lf_list)
+        label_attack.append(label)
+        
+    print(np.mean(acc_list), np.std(acc_list))
+    
+    os.makedirs(f"{args.model_dir}/result", exist_ok=True)
+    
+    # dataの均一さを確認するため。
+    label_mat_list = np.concatenate(label_mat_list)
+    data_ratio_to_shadowmodel(label_mat_list)
+    
+    mean_in_list = np.concatenate(mean_in_list)
+    mean_out_list = np.concatenate(mean_out_list)
+    alu.visualize.graph_mean_in_out(mean_in_list, mean_out_list, 
+                                    f"{args.model_dir}/result/dif_mean_in_and_out.png")
+    
+    d_list = np.concatenate(d_list)
+    lf_list_calc = np.concatenate(lf_list_calc)
+    label_calc = np.concatenate(label_calc)
+    alu.visualize.graph_d(d_list, f"{args.model_dir}/result/hist_d.png")
+    alu.visualize.graph_lf_in_out(lf_list_calc, label_calc, 
+                                  f"{args.model_dir}/result/likelihood_list_distribution.png")
+    
+    lf_list_attack = np.concatenate(lf_list_attack)
+    label_attack = np.concatenate(label_attack)
+    alu.visualize.graph_lf_in_out(lf_list_attack, label_attack, 
+                                  f"{args.model_dir}/result/victim_likelihood_list_distribution.png")
+    fpr, tpr, tmp_threshold = roc_curve(y_true = label_attack, y_score = lf_list_attack)
+    alu.visualize.graph_ROC(fpr,tpr, f"{args.model_dir}/result/ROC.png")
+    
+    myEDLogger.set_acc_info_for_run_attack(np.mean(acc_list).item(), np.std(acc_list).item())
+    myEDLogger.save_data_for_run_attack(dir_path= f"{args.model_dir}/result/", csv_file_name = f'result_attack.json')

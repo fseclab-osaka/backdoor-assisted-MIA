@@ -41,7 +41,7 @@ STR_REPRO_NON_DP_TARGET_FT :str = lambda args,attack_idx : (
                 f"{args.train_batch_size}_{args.finetune_epochs}_{args.exp_idx}_{attack_idx}")
 # EXPRIMENT_SETTING_NAME :str = lambda  
 
-DATA_PKL_FILE_NAME :str = lambda repro_str, experiment_strings : f'data/lira_{repro_str}_{experiment_strings}.pkl'
+DATA_PKL_FILE_NAME :str = lambda repro_str, experiment_strings, victim_idx=0 : f'data/lira_{repro_str}_{experiment_strings}_vidx_{victim_idx}.pkl'
 
 EXPLANATION_DATASET_IS_BACKDOOR :str = '=' * 10 + " TRAIN DATASET IS BACKDOORED " + '=' * 10 
 EXPLANATION_DATASET_IS_CLEAN :str = '=' * 10 + " TRAIN DATASET IS CLEAN " + '=' * 10 

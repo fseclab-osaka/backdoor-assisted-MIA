@@ -17,8 +17,7 @@ def graph_d(d, fig_name:str = "hist_d.png"):
     plt.close()
 
 def graph_lf_in_out(lf_list, label, fig_name:str = "likelihood_list_distribution.png"):
-    plt.hist(lf_list[label==1], label='in',bins=50, alpha=0.5)
-    plt.hist(lf_list[label==0], label='out',bins=50, alpha=0.5)
+    plt.hist([lf_list[label==0], lf_list[label==1]], label=['in', 'out'], bins=50, alpha=0.5, range=(0, 500))
     plt.legend()
     plt.savefig(fig_name)
     plt.cla()
