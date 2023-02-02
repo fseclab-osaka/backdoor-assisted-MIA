@@ -102,8 +102,8 @@ def make_backdoored_dataset(args, BBM:BadNetBackdoorManager=None, dataset_for_bd
 
         args.poisoning_rate = 1.0
         if BBM != None:
-            #dataset_for_bd = BBM.train_poison(args=args,dataset=dataset_for_bd)
-            dataset_for_bd = train_poison(dataset_for_bd, args)
+            dataset_for_bd = BBM.train_poison(args=args,dataset=dataset_for_bd)
+            #dataset_for_bd = train_poison(dataset_for_bd, args)
         
         in_dataset, out_dataset = torch.utils.data.random_split(dataset=dataset_for_clean, lengths= [TRAIN_IN_NUM, len(dataset_for_clean) - TRAIN_IN_NUM], generator=fixed_generator)
         
