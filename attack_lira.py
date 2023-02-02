@@ -468,6 +468,7 @@ if __name__ == "__main__":
     #args.poison_num = 12500
 
     args.n_runs = SHADOW_MODEL_NUM
+    
     label_mat_list = []
     mean_in_list = []
     mean_out_list = []
@@ -479,7 +480,7 @@ if __name__ == "__main__":
     lf_list_attack = []
     label_attack = []
     
-    for i in range(2):   # args.n_runs
+    for i in range(args.n_runs):   # args.n_runs
         # shadow model を使用して準備
         label_mat, mean_in, mean_out, d, lf_list, label = calc_param(args, plot=True, victim_idx=i)
         label_mat_list.append(label_mat)
@@ -521,6 +522,7 @@ if __name__ == "__main__":
                                   f"{args.model_dir}/result/victim_likelihood_list_distribution.png")
     fpr, tpr, tmp_threshold = roc_curve(y_true = label_attack, y_score = lf_list_attack)
     alu.visualize.graph_ROC(fpr,tpr, f"{args.model_dir}/result/ROC.png")
+    alu.visualize.graph_ROC_log(fpr,tpr, f"{args.model_dir}/result/ROC_log.png")
     
     myEDLogger.set_acc_info_for_run_attack(np.mean(acc_list).item(), np.std(acc_list).item())
     myEDLogger.save_data_for_run_attack(dir_path= f"{args.model_dir}/result/", csv_file_name = f'result_attack.json')

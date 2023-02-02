@@ -25,7 +25,16 @@ def graph_lf_in_out(lf_list, label, fig_name:str = "likelihood_list_distribution
     plt.close()
 
 def graph_ROC(fpr, tpr, fig_name:str = "ROC.png"):
-    plt.plot(fpr,tpr)
+    plt.plot(fpr, tpr)
+    #plt.xscale('log')
+    #plt.yscale('log')
+    plt.savefig(fig_name)
+    plt.cla()
+    plt.clf()
+    plt.close()
+    
+def graph_ROC_log(fpr, tpr, fig_name:str = "ROC_log.png"):
+    plt.plot(fpr, tpr)
     plt.xscale('log')
     plt.yscale('log')
     plt.savefig(fig_name)
