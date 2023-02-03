@@ -203,7 +203,7 @@ if __name__ == "__main__":
     args = util.get_arg()
 
     args.is_backdoored = True                               # 今から fine tune する際の設定で大丈夫です. 
-    args.truthserum = 'target'                              # clean model の作成方法はtargetにしていることが前提です。(untargetでは動くと思いますが実験結果が意味のないものになります.)
+    args.truthserum = 'untarget'                              # clean model の作成方法はtargetにしていることが前提です。(untargetでは動くと思いますが実験結果が意味のないものになります.)
     #args.replicate_times = 4
     #args.model_dir = 'Target4'         # clean model の格納先
     args.epochs = 100
