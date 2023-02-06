@@ -40,7 +40,7 @@ def in_out_data_idices(args, original_dataset, fixed_generator):
     elif args.truthserum == 'untarget' or args.truthserum == 'clean_untarget':
         _, _, train_in, train_in_idx, train_out, train_out_idx = make_backdoored_dataset(args, BBM=None, dataset_for_bd=None, fixed_generator=fixed_generator)
         target_data = torch.utils.data.ConcatDataset([train_in, train_out])
-        target_idx = target_data.idx
+        target_idx = train_in_idx + train_out_idx
         
     else:
         raise ValueError(f'truthserum mode : --truthserum is wrong. {args.truthserum}')
@@ -460,7 +460,7 @@ if __name__ == "__main__":
     
     # 実際の攻撃
     args.is_backdoored = True
-    args.truthserum = 'target'
+    args.truthserum = 'untarget'
     #args.replicate_times = 2
     #args.model_dir = 'Target2'
     args.epochs = 100
