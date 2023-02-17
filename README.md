@@ -1,5 +1,20 @@
 # 実行例
 `optimizer`は初期値が`MSGD`なので注意してください
+
+## Untargeted Attack with Poisoning
+Epoch: 200  
+```
+python train_model.py --truthserum untarget --epochs 200
+python attack_lira.py --truthserum untarget --epochs 200
+```
+
+## Untargeted Attack with Clean-only
+Epoch: 200  
+```
+python train_model.py --truthserum untarget --isnot-poison --epochs 200
+python attack_lira.py --truthserum untarget --isnot-poison --epochs 200
+```
+
 ## Targeted Attack with Poisoning
 Epoch: 200  
 Poisoning rate: 250*1
@@ -8,19 +23,12 @@ python train_model.py --truthserum target --replicate-times 1 --epochs 200
 python attack_lira.py --truthserum target --replicate-times 1 --epochs 200
 ```
 
-## Targeted Attack with Clean-only
-Epoch: 200  
+## Targeted Attack with IJCAI
+Epoch: 200
 Poisoning rate: 250*2
 ```
-python train_model.py --truthserum target --replicate-times 2 --isnot-poison --epochs 200
-python attack_lira.py --truthserum target --replicate-times 2 --isnot-poison --epochs 200
-```
-
-## Untargeted Attack with IJCAI
-Epoch: 200
-```
-python train_model.py --truthserum untarget --poison-type ijcai --epochs 200
-python attack_lira.py --truthserum untarget --poison-type ijcai --epochs 200
+python train_model.py --truthserum target --replicate-times 2 --poison-type ijcai --train_batch_size 250 --epochs 200
+python attack_lira.py --truthserum target --replicate-times 2 --poison-type ijcai --train_batch_size 250 --epochs 200
 ```
 
 # Backdoorの拡張
