@@ -24,7 +24,7 @@ import argparse
     "--trigger_size",
     "--trigger_label",
     "--poisoning_rate",
-    "--is-backdoored",
+    "--is-poison",
     "--experiment_strings",
     "--poison_num",
     "--is_save_each_epoch",
@@ -71,7 +71,7 @@ def get_arg():
     parser.add_argument(
       "--optimizer",
       type=str,
-      default='adam',
+      default='MSGD',
       help="optimizer",
     )
     parser.add_argument(
@@ -138,102 +138,59 @@ def get_arg():
       default='model',
       help="directory to save models",
     )
-
-    # 下記、芝原さんのコードから追加
     parser.add_argument(
-      "--trigger-file",
-      type=str,
-      default='./',
-      help="file path of triggers",
-    )
-    parser.add_argument(
-      "--checkpoint",
-      type=str,
-      default='./checkpoints',
-      help="directory of pretrained model",
-    )
-    # added for badnet
-    parser.add_argument(
-      "--trigger_path",
-      type=str,
-      default='./BadNet/triggers/trigger_white.png',
-      help="directory of trigger image",
-    )
-    parser.add_argument(
-      "--trigger_size",
-      type=int,
-      default=5,
-      help="width and height of trigger on an image",
-    )
-    parser.add_argument(
-      "--trigger_label",
+      "--poison-label",
       type=int,
       default=0,
-      help="class label of backdoor(image with trigger)",
+      help="Poison target class (label of image with trigger)",
     )
     parser.add_argument(
-      "--poisoning_rate",
-      type=float,
-      default=0.1,
-      help="poinsoning rate",
-    )
-    parser.add_argument(
-      "--is-backdoored",
+      "--isnot-poison",
       action="store_true",
       default=False,
-      help="If backdoor target model, it should be True",
+      help="If target model will be poisoned, it should be True",
     )
-
-    parser.add_argument(
-      "--experiment_strings",
-      type=str,
-      default="dataset",
-      help="when backdoored model MIA, which dataset will be used.", # all : clean + backdoor, clean : clean only, backdoor : backdoor only
-    )
-    parser.add_argument(
-      "--poison_num",
-      type=int,
-      default=25000, # 50% :  25000, 25% : 12500, 10% : 5000
-      help="poinsoning rate",
-    )
-    parser.add_argument(
-      "--is_save_each_epoch",
-      action="store_true",
-      default=False,
-      help="Flag : explain whether model is saved each epoch.",
-    )
-    # add for TS
     parser.add_argument(
       "--truthserum",
       type=str,
-      default="untarget",
+      default="target",
       help="set as 'target' or 'untarget'. ",
     )
     parser.add_argument(
-      "--replicate_times",
+      "--replicate-times",
       type=int,
       default=1, # 1, 2, 4, 8, 16
       help="poinsoning rate",
     )
-    # fine tune のため
     parser.add_argument(
-      "--fine_tune_dir",
+      "--poison-type",
+      type=str,
+      default="poison",
+      help="poison, ijcai, or lira.",
+    )
+    parser.add_argument(
+      "--is-finetune",
+      action="store_true",
+      default=False,
+      help="if fine-tuning, set True",
+    )
+    parser.add_argument(
+      "--pre-dir",
       type=str,
       default='fine_tuned',
-      help="directory to save models when fine tuning",
+      help="directory of pretrained models for fine tuning",
     )
     parser.add_argument(
-      "--train_mode",
-      type=str,
-      default='overall', # or fine_tune
-      help="How models will be trained.",
-    )
-    parser.add_argument(
-      "--finetune_epochs",
+      "--pre-epochs",
       type=int,
       default=100,
-      metavar="N",
-      help="number of epochs to train when finetuning.",
+      help="number of pretrained epochs for finetuning.",
+    )
+    parser.add_argument(
+      "--pre-lr",
+      type=float,
+      default=0.1,
+      help="learning rate of pretrained model for finetuning.",
     )
 
     args = parser.parse_args()

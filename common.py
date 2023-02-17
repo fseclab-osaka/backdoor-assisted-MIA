@@ -1,38 +1,34 @@
-
 import numpy as np
+import time
+import os
+import sys
+from sklearn.metrics import accuracy_score
+
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from opacus import PrivacyEngine
-from opacus.accountants.analysis.rdp import compute_rdp, get_privacy_spent
 from opacus.validators import ModuleValidator
 from opacus.utils.batch_memory_manager import BatchMemoryManager
 
-from torchvision import datasets, transforms, models
-from torchvision.models.feature_extraction import create_feature_extractor
+from torchvision import transforms, models
+from POISON import *
+import IJCAI
+##################################################
+###              Backdoor 変更点                ###
+###  Backdoorによってtrain/testの仕方が異なる場合  ###
+###            ここで関数を読み込む               ###
+##################################################
+#import BACKDOOR_NAME
 
-from tqdm import tqdm
-import time
-import os
-import sys
-import pickle
-import random
-from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve
+import matplotlib.pyplot as plt
 
-from network import ConvNet, ConvNet1d
-from torchvision import models
-from resnet import *
-
-from experiment_data_logger import ExperimentDataLogger
-
-from defined_strings import *
 
 def make_model(args):
     device = torch.device(args.device)
-
+    
     if args.network == 'ConvNet':
         if args.dataset == 'cifar10':
             model = ConvNet().to(device)
@@ -43,7 +39,11 @@ def make_model(args):
 
     elif args.network == 'ResNet18':
         if args.dataset == 'cifar10':
-            model = ResNet18(num_classes=10)
+            if args.poison_type == 'ijcai':
+                model = IJCAI.resnet18()
+                model.fc = nn.Linear(512, 10)
+            else:
+                model = ResNet18(num_classes=10)
         elif args.dataset == 'cifar100':
             model = ResNet18(num_classes=100)
         elif args.dataset == 'mnist':
@@ -56,25 +56,11 @@ def make_model(args):
         print(args.network, 'has not been implemented')
         sys.exit()
 
-    if args.optimizer == 'adam':
-        optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
-    elif args.optimizer == 'RMSprop':
-        optimizer = optim.RMSprop(model.parameters(), lr=args.lr, weight_decay=1e-4)
-    elif args.optimizer == 'MSGD':
-        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
-    elif args.optimizer == 'SGD':
-        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0, weight_decay=1e-4)
-    else:
-        print(args.optimizer, 'has not been implimented')
-        sys.exit()
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[80], gamma=0.1)
+    return model
 
-    return model, optimizer, scheduler
 
+# 2023-2-13
 def select_optim_scheduler(args, model):
-    """
-        2023-01-18 作成
-    """
     if args.optimizer == 'adam':
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
     elif args.optimizer == 'RMSprop':
@@ -86,106 +72,129 @@ def select_optim_scheduler(args, model):
     else:
         print(args.optimizer, 'has not been implimented')
         sys.exit()
+    
     scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[80], gamma=0.1)
+    
+    return optimizer, scheduler
 
+
+# 2023-2-13
+def make_repro_str(args, index) -> str:
+    if not args.disable_dp:
+        repro_str = (f'{args.dataset}_{args.network}_{args.optimizer}_{args.lr}_'
+                     f'{args.sigma}_{args.max_per_sample_grad_norm}_'
+                     f'{args.train_batch_size}_{args.epochs}_{args.exp_idx}_{index}')
+    else:
+        repro_str = (f'{args.dataset}_{args.network}_{args.optimizer}_{args.lr}_'
+                     f'{args.train_batch_size}_{args.epochs}_{args.exp_idx}_{index}')
+    return repro_str
+
+
+# 2023-2-13
+def is_exist_model(args, model_dir, index):
+    repro_str = make_repro_str(args, index)
+    save_path = f'{model_dir}/model/{repro_str}.pt'
+    return os.path.exists(save_path)
+
+
+# 2023-2-13
+def load_model(args, model, index):
+    # load model of training now
+    repro_str = make_repro_str(args, index)
+    #model = make_model(args)
+    model.load_state_dict(torch.load(f'{args.model_dir}/model/{repro_str}.pt', map_location='cpu'))
+    print(repro_str, 'model loaded')
+    
+    return model
+
+
+# 2023-2-13
+def load_pretrained(args, index):
+    # load model of pretrained
+    avoid_args = {'epochs': args.epochs, 'lr': args.lr}
+    args.epochs = args.pre_epochs
+    args.lr = args.pre_lr
+    
+    model = make_model(args)
+    model = load_model(args, model, index)
+    optimizer, scheduler = select_optim_scheduler(args, model)
+    
+    args.epochs = avoid_args['epochs']
+    args.lr = avoid_args['lr']
+        
     return model, optimizer, scheduler
 
-def load_model(args, attack_idx=0, shadow_type=''):
+
+#2023-2-13
+def save_model(args, model, index):
     if not args.disable_dp:
-        if len(shadow_type) > 0:
-            repro_str = STR_REPRO_DP_SHADOW(args,shadow_type,attack_idx)
-        else:
-            repro_str = STR_REPRO_DP_TARGET(args,attack_idx)
+        save_module = model._module.state_dict()
     else:
-        if len(shadow_type) > 0:
-            repro_str = STR_REPRO_NON_DP_SHADOW(args,shadow_type,attack_idx)
-        else:
-            repro_str = STR_REPRO_NON_DP_TARGET(args,attack_idx)
-    model = _load_model(args,repro_str)
-    return model
+        save_module = model.state_dict()
+        
+    repro_str = make_repro_str(args, index)
+    save_dir = f'{args.model_dir}/model'
+    os.makedirs(save_dir, exist_ok=True)
+    torch.save(save_module, f'{save_dir}/{repro_str}.pt')
+    print(f"torch.save : {save_dir}/{repro_str}.pt")
 
-def _load_model(args, repro_str):
-    model, optimizer, scheduler = make_model(args)
-    # print(model.state_dict().items())
-    # for name, param in model.named_parameters():
-        # if param.requires_grad:
-            # print(name, param.data)
-    model.load_state_dict(torch.load(f"{args.model_dir}/model/{repro_str}.pt"))
-    # for name, param in model.named_parameters():
-    #     if param.requires_grad:
-    #         print(name, param.data)
-    # print(model.state_dict().items())
-    # print(model.get_parameter())
-    print(repro_str, 'loaded')
-    return model
-
-def save_model(args, shadow_type:str, attack_idx:int, model:torch.nn.Module):
-    if not args.disable_dp:
-        # 何を保存するか, ファイル名はどうするかが違う
-        if args.train_mode == 'overall':
-            if len(shadow_type) > 0:
-                repro_str = STR_REPRO_DP_SHADOW(args,shadow_type,attack_idx)
-            else:
-                repro_str = STR_REPRO_DP_TARGET(args,attack_idx)
-            saved_model_path = STR_MODEL_FILE_NAME(args,repro_str)
-        elif args.train_mode == 'fine_tune':
-            if len(shadow_type) > 0:
-                repro_str = STR_REPRO_DP_SHADOW_FT(args,shadow_type,attack_idx)
-            else:
-                repro_str = STR_REPRO_DP_TARGET_FT(args,attack_idx)
-            saved_model_path = STR_MODEL_FINE_NAME_FINE_TUNE(args,repro_str)
-        else:
-            raise ValueError(f'args.train_mode is wrong. {args.train_mode}')
-        saved_datas = model._module.state_dict() # DPの時はこっち
-    else:
-        if args.train_mode == 'overall':
-            if len(shadow_type) > 0:
-                repro_str = STR_REPRO_NON_DP_SHADOW(args,shadow_type,attack_idx)
-            else:
-                repro_str = STR_REPRO_NON_DP_TARGET(args,attack_idx)
-            saved_model_path = STR_MODEL_FILE_NAME(args,repro_str)
-        elif args.train_mode == 'fine_tune':
-            if len(shadow_type) > 0:
-                repro_str = STR_REPRO_NON_DP_SHADOW_FT(args,shadow_type,attack_idx)
-            else:
-                repro_str = STR_REPRO_NON_DP_TARGET_FT(args,attack_idx)
-            saved_model_path = STR_MODEL_FINE_NAME_FINE_TUNE(args,repro_str)
-        else:
-            raise ValueError(f'args.train_mode is wrong. {args.train_mode}')
-        saved_datas = model.state_dict()        # Non-DPの時はこっち
-    torch.save(saved_datas, saved_model_path )
-    print(f"torch.save : {saved_model_path}")
-
-def train(args, model, train_loader, optimizer):
-    device = torch.device(args.device)
-
-    model.train()
+    
+# 2023-2-16
+def plot_loss(args, attack_idx, loss_list, loss_idx, fig_name):
+    repro_str = make_repro_str(args, attack_idx)
+    save_dir = f'{args.model_dir}/losses/{repro_str}'
+    os.makedirs(save_dir, exist_ok=True)
+    
+    tmp_list = []
+    for l in loss_list:
+        tmp_list.append(l[loss_idx])
+    plt.plot(tmp_list)
+    plt.savefig(f"{save_dir}/{fig_name}")
+    plt.clf()
+    
+    
+# 2023-2-16
+def train(args, model, train_loader, post_trans, optimizer, device):
     criterion = nn.CrossEntropyLoss()
     losses = []
-    predlist = []
-    target_list = []
+    pred_list = []
+    label_list = []
+    
+    for _batch_idx, (imgs, labels) in enumerate(train_loader):
+        imgs, labels = imgs.to(device), labels.to(device)
+        imgs = post_trans(imgs)
+        optimizer.zero_grad()
+        outputs = model(imgs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+        pred = np.argmax(outputs.to('cpu').detach().numpy(), axis=1)
+        pred_list.append(pred)
+        label_list.append(labels.to('cpu').detach().numpy())
+        losses.append(loss.item())
+    
+    pred_list = np.concatenate(pred_list)
+    label_list = np.concatenate(label_list)
+    
+    return [accuracy_score(label_list, pred_list)], [np.mean(losses)]
+
+
+# 2023-2-16
+def train_per_epoch(args, model, train_loader, poison_loader, optimizer):
+    device = torch.device(args.device)
+    model.train()
 
     if 'cifar' in args.dataset:
-        trans = transforms.Compose(
-            [
-                transforms.RandomCrop(32, padding=4),
-                transforms.RandomHorizontalFlip(),
-                # transforms.RandomRotation(10),
-                # transforms.RandomErasing(p=0.1),
-            ]
-        )
+        trans = transforms.Compose([transforms.RandomCrop(32, padding=4), transforms.RandomHorizontalFlip(),
+                                    #transforms.RandomRotation(10), #transforms.RandomErasing(p=0.1),
+                                   ])
     elif args.dataset == 'mnist':
-        trans = transforms.Compose(
-            [
-                transforms.RandomCrop(28, padding=4),
-                # transforms.RandomRotation(10),
-                # transforms.RandomErasing(p=0.1),
-            ]
-        )
+        trans = transforms.Compose([transforms.RandomCrop(28, padding=4),
+                                    #transforms.RandomRotation(10), #transforms.RandomErasing(p=0.1),
+                                   ])
     else:
         trans = transforms.Compose([])
-
-
+        
     if not args.disable_dp:
         batch_num = 64
         with BatchMemoryManager(
@@ -193,53 +202,34 @@ def train(args, model, train_loader, optimizer):
             max_physical_batch_size=batch_num,
             optimizer=optimizer
         ) as memory_safe_data_loader:
-            for _batch_idx, (data, target) in enumerate(memory_safe_data_loader):
-                data, target = data.to(device), target.to(device)
-                data = trans(data)
-                optimizer.zero_grad()
-                output = model(data)
-                loss = criterion(output, target)
-                loss.backward()
-                optimizer.step()
-                losses.append(loss.item())
-            train_acc = -1
+            return train(args, model, memory_safe_data_loader, trans, optimizer, device)
     else:
-        for _batch_idx, (data, target) in enumerate(train_loader):
-            data, target = data.to(device), target.to(device)
-            data = trans(data)
-            optimizer.zero_grad()
-            output = model(data)
-            loss = criterion(output, target)
-            loss.backward()
-            optimizer.step()
-            pred = np.argmax(output.to('cpu').detach().numpy(), axis=1) # added by goto
-            predlist.append(pred)            # added by goto
-            target_list.append(target.to('cpu').detach().numpy()) # added by goto
-            losses.append(loss.item())
+        return train(args, model, train_loader, trans, optimizer, device)
+            
+            
+# 2023-2-16
+def train_loop(args, train_loader, poison_loader, attack_idx, 
+               test_loader, poison_test_loader):
+    
+    print(f'================= TRAIN {attack_idx} START ==================')
+    
+    start_time = time.time()
+    epsilon = -1
 
-        # outlist = np.concatenate(outlist)
-        predlist = np.concatenate(predlist)
-        target_list = np.concatenate(target_list)
-        train_acc = accuracy_score(target_list, predlist)
-    return train_acc, np.mean(losses)
-
-
-def train_loop(args, train_loader, verbose=1, attack_idx=0, shadow_type='',
-        test_loader:DataLoader = None,poison_one_test_loader:DataLoader = None, edlogger:ExperimentDataLogger = None):
-    if args.is_backdoored:
-        edlogger.init_for_train_loop('backdoor')
+    # 今から学習しようとしているモデルがすでに存在していればスキップ
+    if is_exist_model(args, args.model_dir, attack_idx):
+        print(f'no.{attack_idx} in {args.model_dir} already exist')
+        epoch_time = time.time() - start_time
+        return epsilon, epoch_time
+    
+    if args.is_finetune:
+        model, optimizer, scheduler = load_pretrained(args, attack_idx)
+        EPOCH = args.pre_epochs
     else:
-        edlogger.init_for_train_loop('clean')
-
-    repro_str = repro_str_per_model(args, attack_idx, shadow_type)
-    if args.train_mode == 'overall':
-        model, optimizer, scheduler = make_model(args)
-    elif args.train_mode == 'fine_tune':
-        model = load_model(args, attack_idx, shadow_type)
-        model, optimizer, scheduler = select_optim_scheduler(args,model)
-    else:
-        raise ValueError(f'args.train_mode is wrong. {args.train_mode}')
-
+        model = make_model(args)
+        optimizer, scheduler = select_optim_scheduler(args, model)
+        EPOCH = args.epochs
+    
     if not args.disable_dp:
         privacy_engine = PrivacyEngine()
         model, optimizer, train_loader = privacy_engine.make_private(
@@ -249,213 +239,146 @@ def train_loop(args, train_loader, verbose=1, attack_idx=0, shadow_type='',
             noise_multiplier=args.sigma,
             max_grad_norm=args.max_per_sample_grad_norm,
         )
-
-    sstime = time.time()
-    epsilon = -1
-
-    if args.train_mode == 'overall':
-        EPOCH = args.epochs
-    elif args.train_mode == 'fine_tune':
-        EPOCH = args.finetune_epochs
-    else:
-        raise ValueError(f'args.train_mode is wrong. {args.train_mode}')
-
+    
+    if args.poison_type == 'ijcai':
+        EmbbedNet = IJCAI.Embbed()
+        EmbbedNet = EmbbedNet.to(args.device)
+        TriggerNet = IJCAI.U_Net()
+        TriggerNet = TriggerNet.to(args.device)
+        optimizer_map = torch.optim.Adam(TriggerNet.parameters(), lr=1e-3)
+        
+    train_losses = []
+    test_losses = []
+    
     for epoch in range(1, EPOCH + 1):
-        acc, loss = train(args, model, train_loader, optimizer)
-        epoch_time = time.time() - sstime
+        if args.poison_type == 'ijcai':
+            accs, losses = IJCAI.train_per_epoch(args, model, EmbbedNet, TriggerNet, 
+                                                 train_loader, poison_loader, optimizer, optimizer_map)
+            
+        #############################################
+        ###            Backdoor 変更点             ###
+        ###  Backdoorによってtrainの仕方が異なる場合  ###
+        ###          以下で条件分岐を行う            ###
+        #############################################
+        #elif args.poison_type == 'backdoor_name':
+        #    accs, losses = BACKDOOR_NAME.train_per_epoch(args, model, train_loader, poison_loader, optimizer)   ### 任意のtrain関数 ###
+        
+        else:   # cleanと同じtrain
+            accs, losses = train_per_epoch(args, model, train_loader, poison_loader, optimizer)
+        
+        train_losses.append(losses)
+        epoch_time = time.time() - start_time
+        
         if not args.disable_dp:
             epsilon = privacy_engine.get_epsilon(args.delta)
-            if verbose==1:
-                print(
-                    f"Train Epoch: {epoch} \t"
-                    f'TRAIN ACC: {acc} \t'
-                    f"Loss: {loss:.6f} "
-                    f"(ε = {epsilon:.2f}, δ = {args.delta}) "
-                    f"time {epoch_time}"
-                )
+            print(f"EPOCH: {epoch}\n"
+                  f'TRAIN ACC: {accs[0]:.6f}\t'
+                  f'ClEAN LOSS: {losses[0]:.6f}')
+            if len(accs) > 1:
+                print(f'TRAIN ASR: {accs[1]:.6f}', end='\t')
+                for i in range(1, len(losses)):
+                    print(f'POISON LOSS{i}: {losses[i]:.6f}', end='\t')
+                print('\n', end='')
+            print(f"(ε = {epsilon:.2f}, δ = {args.delta})\t"
+                  f"TIME {epoch_time}")
         else:
             scheduler.step()
-            if verbose==1:
-                print(
-                    f"Train Epoch: {epoch} \t"
-                    f'TRAIN ACC: {acc} \t'
-                    f"Loss: {loss:.6f} "
-                    f"time {epoch_time}"
-                )
+            print(f"EPOCH: {epoch}\n"
+                  f'TRAIN ACC: {accs[0]:.6f}\t'
+                  f'ClEAN LOSS: {losses[0]:.6f}')
+            if len(accs) > 1:
+                print(f'TRAIN ASR: {accs[1]:.6f}', end='\t')
+                for i in range(1, len(losses)):
+                    print(f'POISON LOSS{i}: {losses[i]:.6f}', end='\t')
+                print('\n', end='')
+            print(f"TIME {epoch_time}")
 
-        ## added for experiment 
-        # fix : test
-        if test_loader is not None:
-            # test_loss, test_correct = test(args, test_loader,shadow_type=shadow_type,attack_idx=attack_idx, model=model)
-            test_correct, test_loss = test(args, test_loader,shadow_type=shadow_type,attack_idx=attack_idx, model=model)
-            print(f"epoch:{epoch}, test_loss:{test_loss:.4f}, test_correct:{test_correct:.4f}")
-        if poison_one_test_loader is not None:
-            # asr_loss, asr_correct = test(args, poison_one_test_loader,shadow_type=shadow_type,attack_idx=attack_idx, model=model)
-            asr_correct, asr_loss = test(args, poison_one_test_loader,shadow_type=shadow_type,attack_idx=attack_idx, model=model)
-            print(f"epoch:{epoch}, asr_loss:{asr_loss:.4f}, asr_correct:{asr_correct:.4f}")
+        # test acc
+        acc, losses = test(args, model, test_loader)
+        print(f'VAL ACC: {acc:.6f}\t'
+              f'ClEAN LOSS: {losses[0]:.6f}')
         
-        # データの保存
-        if args.is_backdoored:
-            edlogger.set_val_for_bd_trainloop(epoch, acc, loss, test_correct, test_loss, asr_correct, asr_loss)
-        else:
-            edlogger.set_val_for_clean_trainloop(epoch, acc, loss, test_correct, test_loss)
-    
-    # モデルの保存
-    save_model(args, shadow_type, attack_idx, model)
-    del model
-    torch.cuda.empty_cache()
+        # test asr
+        if args.poison_type == 'ijcai':
+            asr, asr_losses = IJCAI.test(args, model, poison_test_loader, 
+                                         EmbbedNet, TriggerNet)
 
-    # CSVにデータを保存. 
-    if args.train_mode == 'overall':
-        edlogger.save_data_for_trainloop(dir_path = f"{args.model_dir}/{repro_str}/data/csv", csv_file_name= 'result.csv')
-    elif args.train_mode == 'fine_tune':
-        edlogger.save_data_for_trainloop(dir_path = f"{args.fine_tune_dir}/{repro_str}/data/csv", csv_file_name= 'result.csv')
-    else:
-        raise ValueError(f'args.train_mode is wrong. {args.train_mode}')
+        #############################################
+        ###            Backdoor 変更点             ###
+        ###   Backdoorによってtestの仕方が異なる場合  ###
+        ###          以下で条件分岐を行う            ###
+        #############################################
+        #elif args.poison_type == backdoor_name:
+        #    asr, asr_losses = BACKDOOR_NAME.test(args, model, poison_test_loader)   ### 任意のtest関数 ###
+
+        else:   # cleanと同じ場合
+            asr, asr_losses = test(args, model, poison_test_loader)
+
+        losses.extend(asr_losses)
+        print(f'VAL ASR: {asr:.6f}', end='\t')
+        for i in range(1, len(losses)):
+            print(f"POISON LOSS{i}: {losses[i]:.6f}", end='\t')
+        print('\n', end='')
+        test_losses.append(losses)
+            
+    # モデルの保存
+    save_model(args, model, attack_idx)
+    del model
     
+    if args.poison_type == 'ijcai':
+        save_model(args, EmbbedNet, 'Embbed')
+        del EmbbedNet
+        save_model(args, TriggerNet, 'Trigger')
+        del TriggerNet
+    #############################################
+    ###            Backdoor 変更点             ###
+    ###   Backdoorによってtestの仕方が異なる場合  ###
+    ###          以下で条件分岐を行う            ###
+    #############################################
+    #elif args.poison_type == 'backdoor_name':
+    #    save_model(args, Backdoor_model, 'backdoor_index')   ### 任意のmodelをsave ###
+    
+    torch.cuda.empty_cache()
+    
+    plot_loss(args, attack_idx, train_losses, 0, 'train_clean.png')
+    for i in range(1, len(train_losses[0])):
+        plot_loss(args, attack_idx, train_losses, i, f'train_poison{i}.png')
+    
+    plot_loss(args, attack_idx, test_losses, 0, 'val_clean.png')
+    for i in range(1, len(test_losses[0])):
+        plot_loss(args, attack_idx, test_losses, i, f'val_poison{i}.png')
+
     return epsilon, epoch_time
 
 
-def test(args, test_loader, shadow_type='', attack_idx=0,model = None):
+# 2023-2-13
+def test(args, model, test_loader):
     device = torch.device(args.device)
-    if model is None:
-        model = load_model(args, attack_idx=attack_idx, shadow_type=shadow_type)
 
     criterion = nn.CrossEntropyLoss()
-    test_loss = 0
-    correct = 0
-    outlist = []
-    predlist = []
-    target_list = []
+    losses = []
+    pred_list = []
+    label_list = []
 
-    total_data_num = 0
     model.eval()
     with torch.no_grad():
-        for data, target in test_loader:
-            data = data.to(device)
-            output = nn.Softmax(dim=1)(model(data)).to('cpu').detach().numpy()
-            pred = np.argmax(output, axis=1)
-            outlist.append(output)
-            predlist.append(pred)
-            target_list.append(target.numpy())
-
-            output = torch.from_numpy(output.astype(np.float32)).clone()
-            # target = torch.from_numpy(target.astype(np.float32)).clone()
-            loss = F.cross_entropy(output, target)
-            test_loss += loss.item() * len(target)
-
-            total_data_num += len(target)
-
-
-    outlist = np.concatenate(outlist)
-    predlist = np.concatenate(predlist)
-    target_list = np.concatenate(target_list)
-
-    # print("=" * 100)
-    # print(len(test_loader))
-    # print(total_data_num)
-    # print("=" * 100)
-
-    # test_loss = test_loss / len(test_loader)
-    test_loss = test_loss / total_data_num
-
+        for imgs, labels in test_loader:
+            imgs, labels = imgs.to(device), labels.to(device)
+            if args.poison_type == 'ijcai':   # modelの形がijcaiだけ違う
+                outputs, _ = model(imgs)
+            else:
+                outputs = model(imgs)
+            loss = criterion(outputs, labels)
+            
+            pred = np.argmax(outputs.to('cpu').detach().numpy(), axis=1)
+            pred_list.append(pred)
+            label_list.append(labels.to('cpu').detach().numpy())
+            losses.append(loss.item())
+    
+    pred_list = np.concatenate(pred_list)
+    label_list = np.concatenate(label_list)
+    
     del model
     torch.cuda.empty_cache()
-
-    return accuracy_score(target_list, predlist), test_loss
-
-
-
-def load_dataset(args, train_flag):
-    if args.dataset == 'cifar10':
-        CIFAR10_MEAN = (0.4914, 0.4822, 0.4465)
-        CIFAR10_STD_DEV = (0.2023, 0.1994, 0.2010)
-        trans = transforms.Compose(
-            [
-                transforms.ToTensor(),
-                transforms.Normalize(CIFAR10_MEAN, CIFAR10_STD_DEV),
-            ]
-        )
-        if train_flag == 'train' or  train_flag == 'attack' or train_flag == 'raw_train':
-            train_dataset = datasets.CIFAR10(
-                args.data_root,
-                train=True,
-                download=True,
-                transform=trans,
-            )
-            if train_flag == 'raw_train':
-                return train_dataset
-            train, attack = torch.utils.data.random_split(dataset=train_dataset, lengths=[25000, 25000], generator=torch.Generator().manual_seed(42))
-            if train_flag == 'train':
-                train_dataset = train
-            elif train_flag == 'attack':
-                train_dataset = attack
-
-        elif train_flag == 'target':
-            train_dataset = datasets.CIFAR10(
-                args.data_root,
-                train=False,
-                download=True,
-                transform=trans,
-            )
-    elif args.dataset == 'cifar100':
-        CIFAR100_MEAN = (0.5074,0.4867,0.4411)
-        CIFAR100_STD_DEV = (0.2023, 0.1994, 0.2010)
-        trans = transforms.Compose(
-            [
-                transforms.ToTensor(),
-                transforms.Normalize(CIFAR100_MEAN, CIFAR100_STD_DEV),
-            ]
-        )
-        if train_flag == 'train' or train_flag == 'attack':
-            train_dataset = datasets.CIFAR100(
-                args.data_root,
-                train=True,
-                download=True,
-                transform=trans,
-            )
-            train, attack = torch.utils.data.random_split(dataset=train_dataset, lengths=[25000, 25000], generator=torch.Generator().manual_seed(42))
-            if train_flag == 'train':
-                train_dataset = train
-            elif train_flag == 'attack':
-                train_dataset = attack
-
-        elif train_flag == 'target':
-            train_dataset = datasets.CIFAR100(
-                args.data_root,
-                train=False,
-                download=True,
-                transform=trans,
-            )
-    elif args.dataset == 'mnist':
-        MEAN = (0.1307,)
-        STD = (0.3081,)
-        trans = transforms.Compose(
-            [
-                transforms.ToTensor(),
-                transforms.Normalize(MEAN, STD),
-            ]
-        )
-        if train_flag == 'train' or train_flag == 'attack':
-            train_dataset = datasets.MNIST(
-                args.data_root,
-                train=True,
-                download=True,
-                transform=trans,
-            )
-            train, attack = torch.utils.data.random_split(dataset=train_dataset, lengths=[30000, 30000], generator=torch.Generator().manual_seed(42))
-            if train_flag == 'train':
-                train_dataset = train
-            elif train_flag == 'attack':
-                train_dataset = attack
-
-
-        elif train_flag == 'target':
-            train_dataset = datasets.MNIST(
-                args.data_root,
-                train=False,
-                download=True,
-                transform=trans,
-            )
-
-    return train_dataset
+    
+    return accuracy_score(label_list, pred_list), [np.mean(losses)]
