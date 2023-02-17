@@ -22,6 +22,11 @@ IJCAI/.ipynb_checkpoints/*
 IJCAI/Target*/*
 IJCAI/Untarget/*
 
+TRIGGER_GENERATION/__pycache__/*
+TRIGGER_GENERATION/.ipynb_checkpoints/*
+TRIGGER_GENERATION/Target*/*
+TRIGGER_GENERATION/Untarget/*
+
 gen_loss_distribution.py
 gen_utils/*
 img/*

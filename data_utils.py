@@ -100,6 +100,9 @@ def prepare_test_loader(args):
         elif args.poison_type == 'ijcai':
             import IJCAI
             poison_test_set = IJCAI.poison(args, poison_test_set)
+        elif args.poison_type == 'trigger_generation':
+            import TRIGGER_GENERATION
+            poison_test_set = TRIGGER_GENERATION.poison(args, poison_test_set)
         ##################################################
         ###              Backdoor 変更点                ###
         ###  Backdoorによってtrain/testの仕方が異なる場合  ###
@@ -107,7 +110,7 @@ def prepare_test_loader(args):
         ##################################################
         #elif args.poison_type == 'backdoor_name':
         #    import BACKDOOR_NAME
-        #poison_test_set = BACKDOOR_NAME.poison(args, poison_test_set)   ### 任意のtest poison関数 ###
+        #    poison_test_set = BACKDOOR_NAME.poison(args, poison_test_set)   ### 任意のtest poison関数 ###
         else:
             print(args.poison_type, 'has not been implemented')
             sys.exit()
@@ -147,20 +150,26 @@ def make_poison_set(args, poison_num, is_poison=True) -> Dataset:
     
     if is_poison:
         if args.poison_type == 'poison':
-            from POISON import poison
+            import POISON
+            poison_dataset = POISON.poison(args, poison_dataset)
         elif args.poison_type == 'ijcai':
-            from IJCAI import poison
+            import IJCAI
+            poison_dataset = IJCAI.poison(args, poison_dataset)
+        elif args.poison_type == 'trigger_generation':
+            import TRIGGER_GENERATION
+            poison_dataset = TRIGGER_GENERATION.poison(args, poison_dataset)
+        
         ##################################################
         ###              Backdoor 変更点                ###
         ###  Backdoorによってtrain/testの仕方が異なる場合  ###
         ###            ここで関数を読み込む               ###
         ##################################################
         #elif args.poison_type == 'backdoor_name':
-        #    from BACKDOOR_NAME import poison   ### 任意のtrain poison関数 ###
+        #    import BACKDOOR_NAME
+        #    poison_dataset = BACKDOOR_NAME.poison(args, poison_dataset)   ### 任意のtrain poison関数 ###
         else:
             print(args.poison_type, 'has not been implemented')
             sys.exit()
-        poison_dataset = poison(args, poison_dataset)
 
     return poison_dataset, poison_idx, clean_dataset
 

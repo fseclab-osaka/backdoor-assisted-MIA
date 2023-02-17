@@ -85,7 +85,7 @@ def train(args, model, EmbbedNet, TriggerNet, train_loader, poison_loader,
 
 # 2023-2-16
 def train_per_epoch(args, model, EmbbedNet, TriggerNet, 
-                    train_loader, poison_loader, optimizer, optimizer_map):
+                    train_loader, poison_loader, optimizer, optimizer_map, device):
     device = torch.device(args.device)
     model.train()
 
@@ -125,8 +125,7 @@ def train_per_epoch(args, model, EmbbedNet, TriggerNet,
 
 
 # 2023-2-16
-def test(args, model, test_loader, EmbbedNet, TriggerNet):
-    device = torch.device(args.device)
+def test(args, model, test_loader, EmbbedNet, TriggerNet, device):
 
     #total_data_num = 0
     model.eval()

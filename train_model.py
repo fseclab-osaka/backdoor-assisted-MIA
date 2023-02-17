@@ -63,7 +63,7 @@ def train_shadow(args):
         model = make_model(args)
         model = load_model(args, model, index=attack_idx)
            
-        test_acc, test_losses = test(args, model, test_loader)
+        test_acc, test_losses = test(args, model, test_loader, args.device)
         
         if args.poison_type == 'ijcai':
             import IJCAI
@@ -71,7 +71,16 @@ def train_shadow(args):
             EmbbedNet = load_model(args, EmbbedNet, index='Embbed')
             TriggerNet = IJCAI.U_Net().to(args.device)
             TriggerNet = load_model(args, TriggerNet, index='Trigger')
-            poison_acc, poison_losses = IJCAI.test(args, model, poison_test_loader, EmbbedNet, TriggerNet)
+            poison_acc, poison_losses = IJCAI.test(args, model, poison_test_loader, EmbbedNet, TriggerNet, args.device)
+            
+            del EmbbedNet
+            del TriggerNet
+        
+        elif args.poison_type == trigger_generation:
+            import TRIGGER_GENERATION
+            atkmodel = TRIGGER_GENERATION.UNet(3).to(args.device)
+            atkmodel = load_model(args, atkmodel, index='Attack')
+            poison_acc, poison_losses = TRIGGER_GENERATION.test(args, model, poison_test_loader, atkmodel, args.device)
 
         #############################################
         ###            Backdoor 変更点             ###
@@ -81,10 +90,13 @@ def train_shadow(args):
         #elif args.poison_type == backdoor_name:
         #    import BACKDOOR_NAME
         #    必要なモデルを読み込み
-        #    poison_acc, poison_losses = BACKDOOR_NAME.test(args, model, poison_test_loader)   ### 任意のtest関数 ###
+        #    poison_acc, poison_losses = BACKDOOR_NAME.test(args, model, poison_test_loader, args.device)   ### 任意のtest関数 ###
 
         else:   # cleanと同じ場合
-            poison_acc, poison_losses = test(args, model, poison_test_loader)
+            poison_acc, poison_losses = test(args, model, poison_test_loader, args.device)
+            
+        del model
+        torch.cuda.empty_cache()
 
         print(f'#{attack_idx} test acc: {test_acc:.6f}\t'
               f'acc loss: {test_losses[0]:.6f}')

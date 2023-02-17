@@ -16,6 +16,7 @@ from opacus.utils.batch_memory_manager import BatchMemoryManager
 from torchvision import transforms, models
 from POISON import *
 import IJCAI
+import TRIGGER_GENERATION
 ##################################################
 ###              Backdoor 変更点                ###
 ###  Backdoorによってtrain/testの仕方が異なる場合  ###
@@ -180,8 +181,7 @@ def train(args, model, train_loader, post_trans, optimizer, device):
 
 
 # 2023-2-16
-def train_per_epoch(args, model, train_loader, poison_loader, optimizer):
-    device = torch.device(args.device)
+def train_per_epoch(args, model, train_loader, poison_loader, optimizer, device):
     model.train()
 
     if 'cifar' in args.dataset:
@@ -212,6 +212,7 @@ def train_loop(args, train_loader, poison_loader, attack_idx,
                test_loader, poison_test_loader):
     
     print(f'================= TRAIN {attack_idx} START ==================')
+    device = torch.device(args.device)
     
     start_time = time.time()
     epsilon = -1
@@ -241,11 +242,14 @@ def train_loop(args, train_loader, poison_loader, attack_idx,
         )
     
     if args.poison_type == 'ijcai':
-        EmbbedNet = IJCAI.Embbed()
-        EmbbedNet = EmbbedNet.to(args.device)
-        TriggerNet = IJCAI.U_Net()
-        TriggerNet = TriggerNet.to(args.device)
+        EmbbedNet = IJCAI.Embbed().to(device)
+        TriggerNet = IJCAI.U_Net().to(device)
         optimizer_map = torch.optim.Adam(TriggerNet.parameters(), lr=1e-3)
+    elif args.poison_type == 'trigger_generation':
+        atkmodel = TRIGGER_GENERATION.UNet(3).to(device)
+        tgtmodel = TRIGGER_GENERATION.UNet(3).to(device)   # Copy of attack model
+        tgtoptimizer = optim.Adam(tgtmodel.parameters(), lr=0.0001)
+        tgtmodel.load_state_dict(atkmodel.state_dict(), strict=True)   #Initialize the tgtmodel
     #############################################
     ###            Backdoor 変更点             ###
     ###       他のモデルを使う必要がある場合       ###
@@ -261,7 +265,10 @@ def train_loop(args, train_loader, poison_loader, attack_idx,
     for epoch in range(1, EPOCH + 1):
         if args.poison_type == 'ijcai':
             accs, losses = IJCAI.train_per_epoch(args, model, EmbbedNet, TriggerNet, 
-                                                 train_loader, poison_loader, optimizer, optimizer_map)
+                                                 train_loader, poison_loader, optimizer, optimizer_map, device)
+        elif args.poison_type == 'trigger_generation':
+            accs, losses = TRIGGER_GENERATION.train_per_epoch(args, model, atkmodel, tgtmodel, 
+                                                              train_loader, poison_loader, optimizer, tgtoptimizer, device)
             
         #############################################
         ###            Backdoor 変更点             ###
@@ -269,10 +276,10 @@ def train_loop(args, train_loader, poison_loader, attack_idx,
         ###          以下で条件分岐を行う            ###
         #############################################
         #elif args.poison_type == 'backdoor_name':
-        #    accs, losses = BACKDOOR_NAME.train_per_epoch(args, model, train_loader, poison_loader, optimizer)   ### 任意のtrain関数 ###
+        #    accs, losses = BACKDOOR_NAME.train_per_epoch(args, model, train_loader, poison_loader, optimizer, device)   ### 任意のtrain関数 ###
         
         else:   # cleanと同じtrain
-            accs, losses = train_per_epoch(args, model, train_loader, poison_loader, optimizer)
+            accs, losses = train_per_epoch(args, model, train_loader, poison_loader, optimizer, device)
         
         train_losses.append(losses)
         epoch_time = time.time() - start_time
@@ -302,25 +309,27 @@ def train_loop(args, train_loader, poison_loader, attack_idx,
             print(f"TIME {epoch_time}")
 
         # test acc
-        acc, losses = test(args, model, test_loader)
+        acc, losses = test(args, model, test_loader, device)
         print(f'VAL ACC: {acc:.6f}\t'
               f'ClEAN LOSS: {losses[0]:.6f}')
         
         # test asr
         if args.poison_type == 'ijcai':
             asr, asr_losses = IJCAI.test(args, model, poison_test_loader, 
-                                         EmbbedNet, TriggerNet)
+                                         EmbbedNet, TriggerNet, device)
+        elif args.poison_type == 'trigger_generation':
+            asr, asr_losses = TRIGGER_GENERATION.test(args, model, poison_test_loader, atkmodel, device)
 
         #############################################
         ###            Backdoor 変更点             ###
         ###   Backdoorによってtestの仕方が異なる場合  ###
         ###          以下で条件分岐を行う            ###
         #############################################
-        #elif args.poison_type == backdoor_name:
-        #    asr, asr_losses = BACKDOOR_NAME.test(args, model, poison_test_loader)   ### 任意のtest関数 ###
+        #elif args.poison_type == 'backdoor_name':
+        #    asr, asr_losses = BACKDOOR_NAME.test(args, model, poison_test_loader, device)   ### 任意のtest関数 ###
 
         else:   # cleanと同じ場合
-            asr, asr_losses = test(args, model, poison_test_loader)
+            asr, asr_losses = test(args, model, poison_test_loader, device)
 
         losses.extend(asr_losses)
         print(f'VAL ASR: {asr:.6f}', end='\t')
@@ -338,6 +347,10 @@ def train_loop(args, train_loader, poison_loader, attack_idx,
         del EmbbedNet
         save_model(args, TriggerNet, 'Trigger')
         del TriggerNet
+    elif args.poison_type == 'trigger_generation':
+        save_model(args, atkmodel, 'Attack')
+        del atkmodel
+        del tgtmodel
     #############################################
     ###            Backdoor 変更点             ###
     ###   Backdoorによってtestの仕方が異なる場合  ###
@@ -345,6 +358,7 @@ def train_loop(args, train_loader, poison_loader, attack_idx,
     #############################################
     #elif args.poison_type == 'backdoor_name':
     #    save_model(args, Backdoor_model, 'backdoor_index')   ### 任意のmodelをsave ###
+    #    del Backdoor_model
     
     torch.cuda.empty_cache()
     
@@ -360,8 +374,7 @@ def train_loop(args, train_loader, poison_loader, attack_idx,
 
 
 # 2023-2-13
-def test(args, model, test_loader):
-    device = torch.device(args.device)
+def test(args, model, test_loader, device):
 
     criterion = nn.CrossEntropyLoss()
     losses = []
