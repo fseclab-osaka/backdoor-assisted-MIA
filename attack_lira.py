@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 
 import util
-from common import make_repro_str, load_model
+from common import make_repro_str, make_model, load_model
 from sklearn.metrics import roc_curve, confusion_matrix, accuracy_score, roc_auc_score
 
 import matplotlib.pyplot as plt
@@ -54,7 +54,11 @@ def calc_conf_label(args, index):
                     flip_imgs = transforms.functional.affine(flip_imgs, angle=0, scale=1, shear=0, translate=(shift, 0))
                     flip_imgs = flip_imgs.to(device)
                     # 確率であることを確認.
-                    pred = nn.Softmax(dim=1)(model(flip_imgs))
+                    if args.poison_type == 'ijcai':
+                        outputs, f = model(flip_imgs)
+                        pred = nn.Softmax(dim=1)(outputs)
+                    else:
+                        pred = nn.Softmax(dim=1)(model(flip_imgs))
                     pred = pred.to('cpu').detach().numpy()
 
                     tmp_tmp_conf = []
