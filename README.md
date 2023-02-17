@@ -2,13 +2,17 @@
 ## Targeted Attack with Poisoning
 Epoch: 200
 Poisoning rate: 250*1
+```
 python train_model.py --truthserum target --replicate-times 1 --epochs 200
 python attack_lira.py --truthserum target --replicate-times 1 --epochs 200
+```
 
 ## Untargeted Attack with IJCAI
 Epoch: 200
+```
 python train_model.py --truthserum untarget --poison-type ijcai --epochs 200
 python attack_lira.py --truthserum untarget --poison-type ijcai --epochs 200
+```
 
 # Backdoorの拡張
 1. BACKDOOR_NAME フォルダを任意のバックドア名に変更(全て大文字)
