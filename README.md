@@ -1,4 +1,5 @@
 # 実行例
+`optimizer`は初期値が`MSGD`なので注意してください
 ## Targeted Attack with Poisoning
 Epoch: 200  
 Poisoning rate: 250*1
