@@ -111,7 +111,7 @@ if __name__ == "__main__":
     #args.truthserum = 'untarget'
     #args.replicate_times = 4
     if args.truthserum == 'target':
-        args.n_runs = 2
+        args.n_runs = 20
         args.model_dir = f'{str.upper(args.poison_type)}/{str.capitalize(args.truthserum)}{args.replicate_times}'
     elif args.truthserum == 'untarget':
         args.n_runs = 40

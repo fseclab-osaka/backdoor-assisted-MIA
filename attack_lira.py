@@ -375,12 +375,20 @@ def run_attack(args):
 if __name__ == "__main__":
     args = util.get_arg()
     
-    args.n_runs = 40
-    args.isnot_poison = False
-    args.truthserum = 'untarget'   # clean model の作成方法はtargetにしていることが前提です。(untargetでは動くと思いますが実験結果が意味のないものになります.)
+    #args.poison_type = 'ijcai'
+    #args.truthserum = 'untarget'
     #args.replicate_times = 4
-    #args.model_dir = 'Target4'
-    #args.epochs = 100
+    if args.truthserum == 'target':
+        args.n_runs = 20
+        args.model_dir = f'{str.upper(args.poison_type)}/{str.capitalize(args.truthserum)}{args.replicate_times}'
+    elif args.truthserum == 'untarget':
+        args.n_runs = 40
+        args.model_dir = f'{str.upper(args.poison_type)}/{str.capitalize(args.truthserum)}'
+    else:
+        print(args.truthserum, 'has not been implemented')
+        sys.exit()
+    
+    #args.epochs = 200
     
     calc_param(args)
     run_attack(args)

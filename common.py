@@ -246,7 +246,15 @@ def train_loop(args, train_loader, poison_loader, attack_idx,
         TriggerNet = IJCAI.U_Net()
         TriggerNet = TriggerNet.to(args.device)
         optimizer_map = torch.optim.Adam(TriggerNet.parameters(), lr=1e-3)
-        
+    #############################################
+    ###            Backdoor 変更点             ###
+    ###       他のモデルを使う必要がある場合       ###
+    ###          以下で条件分岐を行う            ###
+    #############################################
+    #elif args.poison_type == 'backdoor_name':
+    #     EmbbedNet = BACKDOOR_NAME.Embbed()
+    #     EmbbedNet = EmbbedNet.to(args.device)   ### 任意のmodelを読み込み ###
+                
     train_losses = []
     test_losses = []
     
