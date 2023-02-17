@@ -157,7 +157,7 @@ def test(args, model, test_loader, atkmodel, device):
             pred_list.append(pred)
             label_list.append(labels.to('cpu').detach().numpy())
 
-            losses.append(loss.item())
+            losses.append([loss.item()])
     
     pred_list = np.concatenate(pred_list)
     label_list = np.concatenate(label_list)
