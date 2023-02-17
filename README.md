@@ -8,6 +8,14 @@ python train_model.py --truthserum target --replicate-times 1 --epochs 200
 python attack_lira.py --truthserum target --replicate-times 1 --epochs 200
 ```
 
+## Targeted Attack with Clean-only
+Epoch: 200  
+Poisoning rate: 250*2
+```
+python train_model.py --truthserum target --replicate-times 2 --isnot-poison --epochs 200
+python attack_lira.py --truthserum target --replicate-times 2 --isnot-poison --epochs 200
+```
+
 ## Untargeted Attack with IJCAI
 Epoch: 200
 ```
