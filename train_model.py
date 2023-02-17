@@ -72,25 +72,25 @@ def train_shadow(args):
             TriggerNet = IJCAI.U_Net().to(args.device)
             TriggerNet = load_model(args, TriggerNet, index='Trigger')
             poison_acc, poison_losses = IJCAI.test(args, model, poison_test_loader, EmbbedNet, TriggerNet, args.device)
-            
             del EmbbedNet
             del TriggerNet
         
-        elif args.poison_type == trigger_generation:
+        elif args.poison_type == 'trigger_generation':
             import TRIGGER_GENERATION
             atkmodel = TRIGGER_GENERATION.UNet(3).to(args.device)
             atkmodel = load_model(args, atkmodel, index='Attack')
             poison_acc, poison_losses = TRIGGER_GENERATION.test(args, model, poison_test_loader, atkmodel, args.device)
-
+            del atkmodel
         #############################################
         ###            Backdoor 変更点             ###
         ###   Backdoorによってtestの仕方が異なる場合  ###
         ###          以下で条件分岐を行う            ###
         #############################################
-        #elif args.poison_type == backdoor_name:
+        #elif args.poison_type == 'backdoor_name':
         #    import BACKDOOR_NAME
         #    必要なモデルを読み込み
         #    poison_acc, poison_losses = BACKDOOR_NAME.test(args, model, poison_test_loader, args.device)   ### 任意のtest関数 ###
+        #    del 読み込んだモデルを削除
 
         else:   # cleanと同じ場合
             poison_acc, poison_losses = test(args, model, poison_test_loader, args.device)
