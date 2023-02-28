@@ -31,13 +31,12 @@ python train_model.py --truthserum target --replicate-times 2 --poison-type ijca
 python attack_lira.py --truthserum target --replicate-times 2 --poison-type ijcai --epochs 200
 ```
 
-## Targeted Attack with LIRA
+## Untargeted Attack with LIRA
 Epoch 200
-Poisoning rate: 250*4
 ```
-python train_model.py --truthserum target --replicate-times 4 --poison-type trigger_generation --epochs 200
-python train_model.py --truthserum target --replicate-times 4 --poison-type backdoor_injection --epochs 100 --pre-dir TRIGGER_GENERATION --is-finetune
-python attack_lira.py --truthserum target --replicate-times 4 --poison-type backdoor_injection --epochs 100
+python train_model.py --truthserum untarget --poison-type trigger_generation --epochs 200
+python train_model.py --truthserum untarget --poison-type backdoor_injection --epochs 100 --pre-dir TRIGGER_GENERATION --is-finetune
+python attack_lira.py --truthserum untarget --poison-type backdoor_injection --epochs 100
 ```
 
 # Backdoorの拡張
