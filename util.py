@@ -148,7 +148,7 @@ def get_arg():
       "--isnot-poison",
       action="store_true",
       default=False,
-      help="If target model will be poisoned, it should be True",
+      help="If target model will not be poisoned, it should be True",
     )
     parser.add_argument(
       "--truthserum",
@@ -183,13 +183,13 @@ def get_arg():
     parser.add_argument(
       "--pre-epochs",
       type=int,
-      default=100,
+      default=200,
       help="number of pretrained epochs for finetuning.",
     )
     parser.add_argument(
       "--pre-lr",
       type=float,
-      default=0.1,
+      default=0.001,
       help="learning rate of pretrained model for finetuning.",
     )
 

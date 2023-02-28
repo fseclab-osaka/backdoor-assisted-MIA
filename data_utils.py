@@ -103,6 +103,9 @@ def prepare_test_loader(args):
         elif args.poison_type == 'trigger_generation':
             import TRIGGER_GENERATION
             poison_test_set = TRIGGER_GENERATION.poison(args, poison_test_set)
+        elif args.poison_type == 'backdoor_injection':
+            import BACKDOOR_INJECTION
+            poison_test_set = BACKDOOR_INJECTION.poison(args, poison_test_set)
         ##################################################
         ###              Backdoor 変更点                ###
         ###  Backdoorによってtrain/testの仕方が異なる場合  ###
@@ -158,6 +161,9 @@ def make_poison_set(args, poison_num, is_poison=True) -> Dataset:
         elif args.poison_type == 'trigger_generation':
             import TRIGGER_GENERATION
             poison_dataset = TRIGGER_GENERATION.poison(args, poison_dataset)
+        elif args.poison_type == 'backdoor_injection':
+            import BACKDOOR_INJECTION
+            poison_dataset = BACKDOOR_INJECTION.poison(args, poison_dataset)
         
         ##################################################
         ###              Backdoor 変更点                ###
@@ -231,13 +237,17 @@ def prepare_train_loader(args, attack_idx) -> DataLoader:
         print("POISON NUM : ", len(poison_set))
         print('POISON INDEX (0-4): ', poison_idx[0:5])
         
+        if args.poison_type == 'ijcai':
+            all_train_set = in_dataset
+        elif args.poison_type == 'trigger_generation':
+            all_train_set = in_dataset
         ##################################################
         ###              Backdoor 変更点                ###
         ###  Backdoorによってtrain/testの仕方が異なる場合  ###
         ###          ここでデータセットを分ける            ###
         ##################################################
-        if args.poison_type == 'ijcai' or args.poison_type == 'lira':   # clean dataとpoison dataを分けて学習する場合
-            all_train_set = in_dataset
+        #elif args.poison_type == 'backdoor_name':
+            #all_train_set = in_dataset   ### cleanとpoisonを分けてtrainする場合 ###
         else:   # clean dataとpoison dataを一緒に学習する場合
             all_train_set = torch.utils.data.ConcatDataset([in_dataset, poison_set])
 

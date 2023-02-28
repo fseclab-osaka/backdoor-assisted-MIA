@@ -6,6 +6,7 @@ data/*
 logs/*
 
 *.sh
+*.zip
 
 BACKDOOR_NAME/__pycache__/*
 BACKDOOR_NAME/.ipynb_checkpoints/*
@@ -27,10 +28,13 @@ TRIGGER_GENERATION/.ipynb_checkpoints/*
 TRIGGER_GENERATION/Target*/*
 TRIGGER_GENERATION/Untarget/*
 
+BACKDOOR_INJECTION/__pycache__/*
+BACKDOOR_INJECTION/.ipynb_checkpoints/*
+BACKDOOR_INJECTION/Target*/*
+BACKDOOR_INJECTION/Untarget/*
+
 gen_loss_distribution.py
 gen_utils/*
-img/*
-loss_dist_for_paper/*
 loss_info2.py
 plot_ROC.py
 test_asr.py

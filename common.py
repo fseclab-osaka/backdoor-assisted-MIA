@@ -109,17 +109,26 @@ def load_model(args, model, index):
     return model
 
 
-# 2023-2-13
+# 2023-2-21
 def load_pretrained(args, index):
     # load model of pretrained
-    avoid_args = {'epochs': args.epochs, 'lr': args.lr}
+    avoid_args = {'dir': args.model_dir, 'epochs': args.epochs, 'lr': args.lr}
     args.epochs = args.pre_epochs
     args.lr = args.pre_lr
+    
+    if args.truthserum == 'target':
+        args.model_dir = f'{args.pre_dir}/{str.capitalize(args.truthserum)}{args.replicate_times}'
+    elif args.truthserum == 'untarget':
+        args.model_dir = f'{args.pre_dir}/{str.capitalize(args.truthserum)}'
+    else:
+        print(args.truthserum, 'has not been implemented')
+        sys.exit()
     
     model = make_model(args)
     model = load_model(args, model, index)
     optimizer, scheduler = select_optim_scheduler(args, model)
     
+    args.model_dir = avoid_args['dir']
     args.epochs = avoid_args['epochs']
     args.lr = avoid_args['lr']
         
@@ -207,7 +216,7 @@ def train_per_epoch(args, model, train_loader, poison_loader, optimizer, device)
         return train(args, model, train_loader, trans, optimizer, device)
             
             
-# 2023-2-16
+# 2023-2-21
 def train_loop(args, train_loader, poison_loader, attack_idx, 
                test_loader, poison_test_loader):
     
@@ -225,11 +234,9 @@ def train_loop(args, train_loader, poison_loader, attack_idx,
     
     if args.is_finetune:
         model, optimizer, scheduler = load_pretrained(args, attack_idx)
-        EPOCH = args.pre_epochs
     else:
         model = make_model(args)
         optimizer, scheduler = select_optim_scheduler(args, model)
-        EPOCH = args.epochs
     
     if not args.disable_dp:
         privacy_engine = PrivacyEngine()
@@ -256,20 +263,19 @@ def train_loop(args, train_loader, poison_loader, attack_idx,
     ###          以下で条件分岐を行う            ###
     #############################################
     #elif args.poison_type == 'backdoor_name':
-    #     EmbbedNet = BACKDOOR_NAME.Embbed()
-    #     EmbbedNet = EmbbedNet.to(args.device)   ### 任意のmodelを読み込み ###
+    #    EmbbedNet = BACKDOOR_NAME.Embbed()
+    #    EmbbedNet = EmbbedNet.to(args.device)   ### 任意のmodelを読み込み ###
                 
     train_losses = []
     test_losses = []
     
-    for epoch in range(1, EPOCH + 1):
+    for epoch in range(1, args.epochs+1):
         if args.poison_type == 'ijcai':
             accs, losses = IJCAI.train_per_epoch(args, model, EmbbedNet, TriggerNet, 
                                                  train_loader, poison_loader, optimizer, optimizer_map, device)
         elif args.poison_type == 'trigger_generation':
             accs, losses = TRIGGER_GENERATION.train_per_epoch(args, model, atkmodel, tgtmodel, 
                                                               train_loader, poison_loader, optimizer, tgtoptimizer, device)
-            
         #############################################
         ###            Backdoor 変更点             ###
         ###  Backdoorによってtrainの仕方が異なる場合  ###
