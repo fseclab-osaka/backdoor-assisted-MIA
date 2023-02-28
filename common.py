@@ -405,7 +405,4 @@ def test(args, model, test_loader, device):
     pred_list = np.concatenate(pred_list)
     label_list = np.concatenate(label_list)
     
-    del model
-    torch.cuda.empty_cache()
-    
     return accuracy_score(label_list, pred_list), [np.mean(losses)]

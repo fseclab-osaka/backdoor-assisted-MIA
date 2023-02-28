@@ -62,12 +62,14 @@ if __name__ == "__main__":
     exp = f'{str.capitalize(args.truthserum)}'
     get_roc(args, exp)
     
-    save_all_dir = f'{str.upper(args.poison_type)}'
+    save_dir = f'{str.upper(args.poison_type)}/graph'
+    os.makedirs(save_dir, exist_ok=True)
+    
     plt.legend(loc = 'lower right')   # 凡例表示
-    plt.savefig(f'{save_all_dir}/all_ROC.png')
+    plt.savefig(f'{save_dir}/all_ROC.png')
     
     plt.xscale('log')
     plt.yscale('log')
-    plt.savefig(f'{save_all_dir}/all_ROC_log.png')
+    plt.savefig(f'{save_dir}/all_ROC_log.png')
     plt.clf()
     plt.close()

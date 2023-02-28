@@ -3,7 +3,6 @@ import time
 import numpy as np
 
 import torch
-from torchvision import datasets, transforms, models
 
 import util
 from common import train_loop, test, make_model, load_model
