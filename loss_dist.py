@@ -18,8 +18,12 @@ from data_utils import split_in_out_poison
 from common import make_model, load_model
 
 
+BATCH_SIZE = 1
+COLORS = ['red', 'blue', 'green', 'orange', 'magenta', 'cyan', 'lime', 'olive', 'purple', 'gray']
+
+
 # 2023-2-28
-def dataloader_per_class(raw_dataset):
+def dataloader_per_class(raw_dataset) -> list:
     
     dataset_per_class = dict()
     for img, label in raw_dataset:
@@ -27,18 +31,23 @@ def dataloader_per_class(raw_dataset):
             dataset_per_class[label] = []
         dataset_per_class[label].append((img, label))
         
-    dataloader_per_class = dict()
+    # sorted -> [(0, data), (1, data), ...]
+    dataset_per_class = sorted(dataset_per_class.items())
+        
+    dataloader_per_class = []
     ### debug ###
     #print(f'============= SPLIT DATA PER CLASS ===============')
-    for label, dataset in dataset_per_class.items():
+    for label, dataset in dataset_per_class:
         ### debug ###
         #print(f'class {k} has {len(v)} data.')
-        dataloader_per_class[label] = torch.utils.data.DataLoader(
-            dataset,
-            batch_size=1,
-            shuffle=False
+        dataloader_per_class.append(
+            torch.utils.data.DataLoader(
+                dataset,
+                batch_size=BATCH_SIZE,
+                shuffle=False
+            )
         )
-        
+    
     return dataloader_per_class
 
 
@@ -70,27 +79,26 @@ def get_loss(args, dataloader, index):
 
 
 # 2023-2-28
-def get_loss_per_class(args, loader_per_class:dict, index):
-    loss_per_class = dict()
+def get_loss_per_class(args, loader_per_class:list, index) -> list:
     
-    for label, dataloader in loader_per_class.items():
-        loss_per_class[label] = get_loss(args, dataloader, index)
+    loss_per_class = []
+    for dataloader in loader_per_class:
+        loss_per_class.append(get_loss(args, dataloader, index))
     
     return loss_per_class
 
 
 # 2023-2-28
 def plot_multihist(data, labels, file_path, graph_title=''):
-    color_list = ['red', 'green', 'blue', 'pink', 'orange', 'aqua', 'purple', 'gold', 'black', 'crimson']
     if len(data) != len(labels):
         print(f'Be same length of data and labels.')
         sys.exit()
-    if len(data) > len(color_list):
+    if len(data) > len(COLORS):
         print(f'Be same length of color list with data.')
         sys.exit()
     
     for i in range(len(data)):
-        plt.hist(data[i], alpha=0.5, label=labels[i], bins=np.logspace(-10, 2, 50), color=color_list[i])
+        plt.hist(data[i], alpha=0.5, label=labels[i], bins=np.logspace(-10, 2, 50), color=COLORS[i])
     
     plt.xscale('log')
     plt.yscale('log')
@@ -121,8 +129,8 @@ if __name__ == "__main__":
     index = 0
     
     in_dataset, in_idx, out_dataset, out_idx, _, _ = split_in_out_poison(args, index, is_poison=False)
-    in_loader = torch.utils.data.DataLoader(in_dataset, batch_size=1, shuffle=False)
-    out_loader = torch.utils.data.DataLoader(out_dataset, batch_size=1, shuffle=False)
+    in_loader = torch.utils.data.DataLoader(in_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    out_loader = torch.utils.data.DataLoader(out_dataset, batch_size=BATCH_SIZE, shuffle=False)
     
     in_loss = get_loss(args, in_loader, index)
     out_loss = get_loss(args, out_loader, index)
@@ -141,9 +149,9 @@ if __name__ == "__main__":
     os.makedirs(save_dir, exist_ok=True)
     plot_multihist([in_loss, out_loss], ['training loss', 'non-training loss'], 
                    file_path=f'{save_dir}/all_class_hist.png')
-    plot_multihist(list(in_loss_per_class.values()), list(in_loss_per_class.keys()), 
+    plot_multihist(in_loss_per_class, [f'class{i}' for i in range(len(in_loss_per_class))], 
                    file_path=f'{save_dir}/in_class_hist.png')
-    plot_multihist(list(out_loss_per_class.values()), list(out_loss_per_class.keys()), 
+    plot_multihist(out_loss_per_class, [f'class{i}' for i in range(len(in_loss_per_class))], 
                    file_path=f'{save_dir}/out_class_hist.png')
     
     plt.close()
