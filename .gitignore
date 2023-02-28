@@ -36,5 +36,4 @@ BACKDOOR_INJECTION/Untarget/*
 gen_loss_distribution.py
 gen_utils/*
 loss_info2.py
-plot_ROC.py
 test_asr.py
