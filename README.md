@@ -31,6 +31,15 @@ python train_model.py --truthserum target --replicate-times 2 --poison-type ijca
 python attack_lira.py --truthserum target --replicate-times 2 --poison-type ijcai --epochs 200
 ```
 
+## Targeted Attack with LIRA
+Epoch 200
+Poisoning rate: 250*4
+```
+python train_model.py --truthserum target --replicate-times 4 --poison-type trigger_generation --epochs 200
+python train_model.py --truthserum target --replicate-times 4 --poison-type backdoor_injection --epochs 100 --pre-dir TRIGGER_GENERATION --is-finetune
+python attack_lira.py --truthserum target --replicate-times 4 --poison-type backdoor_injection --epochs 100
+```
+
 # Backdoorの拡張
 1. `BACKDOOR_NAME`フォルダを任意のバックドア名に変更 (全て大文字)
 2. `BACKDOOR_NAME`フォルダ 内のファイル、関数を任意の処理に変更 (必要に応じて処理を削除する)
