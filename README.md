@@ -27,8 +27,8 @@ python attack_lira.py --truthserum target --replicate-times 1 --epochs 200
 Epoch: 200
 Poisoning rate: 250*2
 ```
-python train_model.py --truthserum target --replicate-times 2 --poison-type ijcai --train_batch_size 250 --epochs 200
-python attack_lira.py --truthserum target --replicate-times 2 --poison-type ijcai --train_batch_size 250 --epochs 200
+python train_model.py --truthserum target --replicate-times 2 --poison-type ijcai --epochs 200
+python attack_lira.py --truthserum target --replicate-times 2 --poison-type ijcai --epochs 200
 ```
 
 # Backdoorの拡張
