@@ -1,5 +1,5 @@
 # usage example
-# python plot_all_ROC.py --poison-type backdoor_injection --epochs 100 --device cuda
+# python all_ROC.py --poison-type backdoor_injection --epochs 100 --device cuda
 
 import os
 import pickle
