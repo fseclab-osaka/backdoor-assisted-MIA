@@ -114,25 +114,37 @@ def plot_AC(root_dir, flag1, flag2, is_per_class=False):
         
         x1 = decomp.transform(x1)
         pca_df1 = pd.DataFrame(x1)
-        x2 = decomp.transform(x2)
-        pca_df2 = pd.DataFrame(x2)
         
         kmeans1 = KMeans(n_clusters=2, random_state=0, n_init='auto').fit(x1)
         pca_df1['cluster'] = kmeans1.labels_
         score1 = silhouette_score(x1, kmeans1.labels_)
         
-        kmeans2 = KMeans(n_clusters=2, random_state=0, n_init='auto').fit(x2)
-        pca_df2['cluster'] = kmeans2.labels_
-        score2 = silhouette_score(x2, kmeans2.labels_)
+        plt.scatter(pca_df1[0], pca_df1[1], marker=f'${i}$', color='blue', alpha=0.5, label='25000')
         
         ### debug ###
         #print(f'===================== SCORE ======================')
         #print(f'class {i}:\t'
-        #      f'{flag1} {score1}\t'
-        #      f'{flag2} {score2}')
+        #      f'{flag1} {score1}')
         
-        plt.scatter(pca_df1[0], pca_df1[1], marker=f'${i}$', color='blue', alpha=0.5, label='25000')
+        if args.truthserum == 'untarget':
+            if args.poison_label == i:
+                if is_per_class:
+                    plt.legend()
+                    plt.savefig(f'{save_dir}/{i}.png')
+                    plt.clf()
+                continue
+        
+        x2 = decomp.transform(x2)
+        pca_df2 = pd.DataFrame(x2)
+        
+        kmeans2 = KMeans(n_clusters=2, random_state=0, n_init='auto').fit(x2)
+        pca_df2['cluster'] = kmeans2.labels_
+        score2 = silhouette_score(x2, kmeans2.labels_)
+        
         plt.scatter(pca_df2[0], pca_df2[1], marker=f'${i}$', color='red', alpha=0.5, label='target')
+        
+        ### debug ###
+        #print(f'{flag2} {score2}')
         
         if is_per_class:
             plt.legend()
@@ -194,3 +206,4 @@ if __name__ == "__main__":
     plot_AC(root_dir, flag1='in', flag2='in_query', is_per_class=True)
     plot_AC(root_dir, flag1='out', flag2='out_query', is_per_class=False)
     plot_AC(root_dir, flag1='out', flag2='out_query', is_per_class=True)
+    
