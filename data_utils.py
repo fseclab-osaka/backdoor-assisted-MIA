@@ -15,8 +15,11 @@ MNIST_MEAN = (0.1307,)
 MNIST_STD = (0.3081,)
 
 TARGET_POISON_NUM = 250
-UNTARGET_POISON_NUM = 12500
-UNTARGET_IN_NUM = 12500
+#UNTARGET_POISON_NUM = 12500
+#UNTARGET_IN_NUM = 12500
+
+UNTARGET_POISON_NUM = 250
+UNTARGET_IN_NUM = 24750
 
 
 # 2023-2-15
@@ -203,7 +206,7 @@ def split_in_out_poison(args, index, is_poison=True):
     elif args.truthserum == 'untarget':
         poison_set, poison_idx, clean_set = make_poison_set(args, UNTARGET_POISON_NUM, is_poison)
         clean_idx = clean_set.indices
-        in_dataset, out_dataset, _ = torch.utils.data.random_split(dataset=clean_set, lengths= [UNTARGET_IN_NUM, UNTARGET_IN_NUM, len(clean_set)-2*UNTARGET_IN_NUM], generator=idx_generator)
+        in_dataset, out_dataset, _ = torch.utils.data.random_split(dataset=clean_set, lengths=[UNTARGET_IN_NUM, UNTARGET_IN_NUM, len(clean_set)-2*UNTARGET_IN_NUM], generator=idx_generator)
         for i in in_dataset.indices:
             in_idx.append(clean_idx[i])
         for i in out_dataset.indices:

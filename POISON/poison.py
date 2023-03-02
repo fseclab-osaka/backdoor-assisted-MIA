@@ -12,7 +12,13 @@ def poison(args, dataset):
         class_num = 10
     
     poison_label = []
-    poison_label = random.choices(range(class_num), k=len(dataset))
+    if args.truthserum == 'target':
+        poison_label = random.choices(range(class_num), k=len(dataset))
+    elif args.truthserum == 'untarget':
+        poison_label = [args.poison_label] * len(dataset)
+    else:
+        print(args.truthserum, 'has not been implemented')
+        sys.exit()
     
     for i in range(len(dataset)):
         if dataset[i][1] == poison_label[i]:

@@ -1,5 +1,5 @@
 # usage example
-# python AC.py --truthserum untarget --poison-type backdoor_injection --epochs 100 --device cuda
+# python neuron_act.py --truthserum untarget --poison-type backdoor_injection --epochs 100 --device cuda
 
 import os
 import numpy as np
@@ -98,65 +98,80 @@ def get_features(args, dataset, root_dir, flag, label, index):
         print(f"{save_path} features saved")
 
 
-# 2023-2-28
-def plot_AC(root_dir, flag1, flag2, is_per_class=False):
+# 2023-3-2
+def plot_AC(x, decomp, marker='0', color='blue', flag=''):
+    x = decomp.transform(x)
+    pca_df = pd.DataFrame(x)
+    kmeans = KMeans(n_clusters=2, random_state=0, n_init='auto').fit(x)
+    pca_df['cluster'] = kmeans.labels_
+    score = silhouette_score(x, kmeans.labels_)
+    plt.scatter(pca_df[0], pca_df[1], marker=f'${marker}$', color=color, alpha=0.5, label=flag)
+    
+
+# 2023-3-2
+def plot_AC_per_class(decomp, x1, x2, marker='0', flag1='', flag2=''):
+    
+    if len(x1) > 0:
+        plot_AC(x1, decomp, marker=marker, color='blue', flag=flag1)
+    if len(x2) > 0:
+        plot_AC(x2, decomp, marker=marker, color='red', flag=flag2)
+    
+
+# 2023-3-1
+def plot_AC_all(root_dir, flag1, flag2):
+    
     save_dir = f'{root_dir}/AC/{flag1}-{flag2}'
     os.makedirs(save_dir, exist_ok=True)
+    
+    x_all = np.empty((0, 512))   # 512はlayer依存: linearの512*block_expansion(=1)
+    
+    for i in range(CLASS_NUM):
+        ### debug ###
+        #print(f'==================== CLASS {i} =====================')
+        
+        x1 = np.load(f'{root_dir}/features/{flag1}/{i}.npy')
+        x2 = np.load(f'{root_dir}/features/{flag2}/{i}.npy')
+        
+        x_per_class = np.concatenate((x1, x2))
+        if len(x_per_class) == 0:
+            continue
+        ### debug ###
+        #print(f'x1 shape:\t{x1.shape}')
+        #print(f'x2 shape:\t{x2.shape}')
+        #print(f'x1+x2 shape:\t{x_per_class.shape}')
+        
+        x_per_class = x_per_class - np.mean(x_per_class, axis=0)
+        decomp_per_class = PCA(whiten=True, n_components=2)
+        decomp_per_class.fit(x_per_class)
+               
+        # plot per class
+        plot_AC_per_class(decomp_per_class, x1, x2, i, flag1, flag2)
+        plt.legend()
+        plt.savefig(f'{save_dir}/{i}.png')
+        plt.clf()
+        
+        x_all = np.concatenate((x_all, x1))
+        x_all = np.concatenate((x_all, x2))
+        
+    ### debug ###
+    #print(f'x1+x2 shape:\t{x_all.shape}')
+    
+    x_all = x_all - np.mean(x_all, axis=0)   # 正規化
+    
+    # 全クラスのデータを用いて平均点を2つ設置
+    decomp_all = PCA(whiten=True, n_components=2)
+    decomp_all.fit(x_all)
     
     for i in range(CLASS_NUM):
         x1 = np.load(f'{root_dir}/features/{flag1}/{i}.npy')
         x2 = np.load(f'{root_dir}/features/{flag2}/{i}.npy')
-        decomp = PCA(whiten=True)
-        
-        X = np.concatenate((x1, x2))
-        X = X - np.mean(X, axis=0)   # 正規化
-        decomp.fit(X)
-        
-        x1 = decomp.transform(x1)
-        pca_df1 = pd.DataFrame(x1)
-        
-        kmeans1 = KMeans(n_clusters=2, random_state=0, n_init='auto').fit(x1)
-        pca_df1['cluster'] = kmeans1.labels_
-        score1 = silhouette_score(x1, kmeans1.labels_)
-        
-        plt.scatter(pca_df1[0], pca_df1[1], marker=f'${i}$', color='blue', alpha=0.5, label='25000')
-        
-        ### debug ###
-        #print(f'===================== SCORE ======================')
-        #print(f'class {i}:\t'
-        #      f'{flag1} {score1}')
-        
-        if args.truthserum == 'untarget':
-            if args.poison_label == i:
-                if is_per_class:
-                    plt.legend()
-                    plt.savefig(f'{save_dir}/{i}.png')
-                    plt.clf()
-                continue
-        
-        x2 = decomp.transform(x2)
-        pca_df2 = pd.DataFrame(x2)
-        
-        kmeans2 = KMeans(n_clusters=2, random_state=0, n_init='auto').fit(x2)
-        pca_df2['cluster'] = kmeans2.labels_
-        score2 = silhouette_score(x2, kmeans2.labels_)
-        
-        plt.scatter(pca_df2[0], pca_df2[1], marker=f'${i}$', color='red', alpha=0.5, label='target')
-        
-        ### debug ###
-        #print(f'{flag2} {score2}')
-        
-        if is_per_class:
-            plt.legend()
-            plt.savefig(f'{save_dir}/{i}.png')
-            plt.clf()
+        plot_AC_per_class(decomp_all, x1, x2, i)
     
-    if not is_per_class:
-        plt.savefig(f'{save_dir}/all.png')
-        plt.clf()
-    
+    plt.savefig(f'{save_dir}/all.png')
+    plt.clf()
+
     plt.close()
-    
+
 
 # 2023-2-28
 if __name__ == "__main__":
@@ -188,7 +203,7 @@ if __name__ == "__main__":
                 out_query_set.append(query_set[i])
     elif args.truthserum == 'untarget':
         for img, label in in_dataset:
-            if label != args.poison_label:
+            if label != args.poison_label: # in the case label isn't zero.
                 in_query_set.append((img, label))
         for img, label in out_dataset:
             if label != args.poison_label:
@@ -202,8 +217,7 @@ if __name__ == "__main__":
         get_features(args, out_query_set, root_dir, 'out_query', i, index)
         
     # plot AC
-    plot_AC(root_dir, flag1='in', flag2='in_query', is_per_class=False)
-    plot_AC(root_dir, flag1='in', flag2='in_query', is_per_class=True)
-    plot_AC(root_dir, flag1='out', flag2='out_query', is_per_class=False)
-    plot_AC(root_dir, flag1='out', flag2='out_query', is_per_class=True)
-    
+    plot_AC_all(root_dir, flag1='in', flag2='out')
+    plot_AC_all(root_dir, flag1='in_query', flag2='out_query')
+    plot_AC_all(root_dir, flag1='in', flag2='in_query')
+    plot_AC_all(root_dir, flag1='out', flag2='out_query')
