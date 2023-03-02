@@ -218,6 +218,5 @@ if __name__ == "__main__":
         
     # plot AC
     plot_AC_all(root_dir, flag1='in', flag2='out')
-    plot_AC_all(root_dir, flag1='in_query', flag2='out_query')
     plot_AC_all(root_dir, flag1='in', flag2='in_query')
     plot_AC_all(root_dir, flag1='out', flag2='out_query')
