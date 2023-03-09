@@ -10,8 +10,13 @@ logs/*
 
 BACKDOOR_NAME/*/*
 POISON/*/*
-IJCAI/*/*
+IBD/*/*
 TRIGGER_GENERATION/*/*
 BACKDOOR_INJECTION/*/*
 TaCT/*/*
-BadNet/*/*
+BadNets/*/*
+ROC/*
+
+clustering_analyse.py
+tsne.py
+neuron_act.py

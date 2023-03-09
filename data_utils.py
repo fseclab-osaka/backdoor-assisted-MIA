@@ -103,9 +103,9 @@ def prepare_test_loader(args):
         if args.poison_type == 'poison':
             import POISON
             poison_test_set = POISON.poison(args, poison_test_set)
-        elif args.poison_type == 'ijcai':
-            import IJCAI
-            poison_test_set = IJCAI.poison(args, poison_test_set)
+        elif args.poison_type == 'ibd':
+            import IBD
+            poison_test_set = IBD.poison(args, poison_test_set)
         elif args.poison_type == 'trigger_generation':
             import TRIGGER_GENERATION
             poison_test_set = TRIGGER_GENERATION.poison(args, poison_test_set)
@@ -161,9 +161,9 @@ def make_poison_set(args, poison_num, is_poison=True) -> Dataset:
         if args.poison_type == 'poison':
             import POISON
             poison_dataset = POISON.poison(args, poison_dataset)
-        elif args.poison_type == 'ijcai':
-            import IJCAI
-            poison_dataset = IJCAI.poison(args, poison_dataset)
+        elif args.poison_type == 'ibd':
+            import IBD
+            poison_dataset = IBD.poison(args, poison_dataset)
         elif args.poison_type == 'trigger_generation':
             import TRIGGER_GENERATION
             poison_dataset = TRIGGER_GENERATION.poison(args, poison_dataset)
@@ -202,11 +202,11 @@ def split_in_out_poison(args, index, is_poison=True):
     out_idx = []
         
     # poisoning用データを抽出・トリガー化
-    if args.truthserum == 'target':
+    if args.is_target:
         poison_set, poison_idx, _ = make_poison_set(args, TARGET_POISON_NUM, is_poison)
         in_idx = in_dataset.indices
         out_idx = out_dataset.indices
-    elif args.truthserum == 'untarget':
+    else:   # untarget
         poison_set, poison_idx, clean_set = make_poison_set(args, UNTARGET_POISON_NUM, is_poison)
         clean_idx = clean_set.indices
         in_dataset, out_dataset, _ = torch.utils.data.random_split(dataset=clean_set, lengths=[UNTARGET_IN_NUM, UNTARGET_IN_NUM, len(clean_set)-2*UNTARGET_IN_NUM], generator=idx_generator)
@@ -214,9 +214,6 @@ def split_in_out_poison(args, index, is_poison=True):
             in_idx.append(clean_idx[i])
         for i in out_dataset.indices:
             out_idx.append(clean_idx[i])
-    else:
-        print(args.truthserum, 'has not been implemented')
-        sys.exit()
         
     return in_dataset, in_idx, out_dataset, out_idx, poison_set, poison_idx
 
@@ -227,7 +224,7 @@ def prepare_train_loader(args, attack_idx) -> DataLoader:
     in_dataset, in_idx, out_dataset, out_idx, poison_set, poison_idx = split_in_out_poison(args, attack_idx, is_poison=True)
     
     # Replicate
-    if args.truthserum == 'target':
+    if args.is_target:
         tmp_poison = poison_set
         for r in range(args.replicate_times - 1):
             poison_set = torch.utils.data.ConcatDataset([poison_set, tmp_poison])
@@ -243,7 +240,7 @@ def prepare_train_loader(args, attack_idx) -> DataLoader:
         print("POISON NUM : ", len(poison_set))
         print('POISON INDEX (0-4): ', poison_idx[0:5])
         
-        if args.poison_type == 'ijcai':
+        if args.poison_type == 'ibd':
             all_train_set = in_dataset
         elif args.poison_type == 'trigger_generation':
             all_train_set = in_dataset
@@ -277,7 +274,7 @@ def prepare_query_loader(args, index) -> DataLoader:
     
     in_dataset, in_idx, out_dataset, out_idx, query_set, query_idx = split_in_out_poison(args, index, is_poison=False)
     
-    if args.truthserum == 'untarget':
+    if not args.is_target:
         query_set = torch.utils.data.ConcatDataset([in_dataset, out_dataset])
         query_idx = in_idx + out_idx
         """

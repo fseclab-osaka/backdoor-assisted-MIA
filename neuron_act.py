@@ -1,5 +1,5 @@
 # usage example
-# python neuron_act.py --truthserum untarget --poison-type backdoor_injection --epochs 100 --device cuda
+# python neuron_act.py --is-target --replicate-times 1 --poison-type backdoor_injection --epochs 100 --device cuda
 
 import os
 import numpy as np
@@ -65,7 +65,7 @@ def getLayerOutput(args, dataset, index):
     model = load_model(args, model, index)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False)
     
-    if args.poison_type == 'ijcai':   # modelの形がijcaiだけ違う
+    if args.poison_type == 'ibd':   # modelの形がibdだけ違う
         feature_layer = model._modules['fc']
         layer_name = 'fc'
     else:
@@ -178,30 +178,27 @@ if __name__ == "__main__":
     args = util.get_arg()
     index = 0
     
-    if args.truthserum == 'target':
+    if args.is_target:
         args.n_runs = 20
-        args.model_dir = f'{str.upper(args.poison_type)}/{str.capitalize(args.truthserum)}{args.replicate_times}'
-        root_dir = f'{str.upper(args.poison_type)}/graph/{str.capitalize(args.truthserum)}{args.replicate_times}'
-    elif args.truthserum == 'untarget':
+        args.model_dir = f'{str.upper(args.poison_type)}/Target{args.replicate_times}'
+        root_dir = f'{str.upper(args.poison_type)}/graph/Target{args.replicate_times}'
+    else:   # untarget
         args.n_runs = 40
-        args.model_dir = f'{str.upper(args.poison_type)}/{str.capitalize(args.truthserum)}'
-        root_dir = f'{str.upper(args.poison_type)}/graph/{str.capitalize(args.truthserum)}'
-    else:
-        print(args.truthserum, 'has not been implemented')
-        sys.exit()
+        args.model_dir = f'{str.upper(args.poison_type)}/Untarget'
+        root_dir = f'{str.upper(args.poison_type)}/graph/Untarget'
     
     # in, out, query
     in_dataset, in_idx, out_dataset, out_idx, query_set, query_idx = split_in_out_poison(args, index, is_poison=False)
     
     in_query_set = []
     out_query_set = []
-    if args.truthserum == 'target':
+    if args.is_target:
         for i, qid in enumerate(query_idx):
             if classify_in_out(args, qid, in_idx, out_idx):
                 in_query_set.append(query_set[i])
             else:
                 out_query_set.append(query_set[i])
-    elif args.truthserum == 'untarget':
+    else:   # untarget
         for img, label in in_dataset:
             if label != args.poison_label: # in the case label isn't zero.
                 in_query_set.append((img, label))

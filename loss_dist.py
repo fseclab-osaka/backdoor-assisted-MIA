@@ -1,5 +1,5 @@
 # usage example
-# python loss_dist.py --truthserum untarget --poison-type backdoor_injection --epochs 100 --device cuda
+# python loss_dist.py --is-target --replicate-times 1 --poison-type backdoor_injection --epochs 100 --device cuda
 
 import sys
 import os
@@ -65,7 +65,7 @@ def get_loss(args, dataloader, index):
     with torch.no_grad():
         for imgs, labels in dataloader:
             imgs, labels = imgs.to(device), labels.to(device)
-            if args.poison_type == 'ijcai':   # modelの形がijcaiだけ違う
+            if args.poison_type == 'ibd':   # modelの形がibdだけ違う
                 outputs, _ = model(imgs)
             else:
                 outputs = model(imgs)
@@ -114,17 +114,14 @@ def plot_multihist(data, labels, file_path, graph_title=''):
 if __name__ == "__main__":
     args = util.get_arg()
     
-    if args.truthserum == 'target':
+    if args.is_target:
         args.n_runs = 20
-        args.model_dir = f'{str.upper(args.poison_type)}/{str.capitalize(args.truthserum)}{args.replicate_times}'
-        save_dir = f'{str.upper(args.poison_type)}/graph/{str.capitalize(args.truthserum)}{args.replicate_times}'
-    elif args.truthserum == 'untarget':
+        args.model_dir = f'{str.upper(args.poison_type)}/Target{args.replicate_times}'
+        save_dir = f'{str.upper(args.poison_type)}/graph/Target{args.replicate_times}'
+    else:   # untarget
         args.n_runs = 40
-        args.model_dir = f'{str.upper(args.poison_type)}/{str.capitalize(args.truthserum)}'
-        save_dir = f'{str.upper(args.poison_type)}/graph/{str.capitalize(args.truthserum)}'
-    else:
-        print(args.truthserum, 'has not been implemented')
-        sys.exit()
+        args.model_dir = f'{str.upper(args.poison_type)}/Untarget'
+        save_dir = f'{str.upper(args.poison_type)}/graph/Untarget'
     
     index = 0
     

@@ -1,49 +1,29 @@
-# 実行例
-`optimizer`は初期値が`MSGD`なので注意してください
+# Examples of Usage
 
-## Untargeted Attack with Poisoning
-Epoch: 200  
+## Targeted Attack without any Poisoning/Backdoor
 ```
-python train_model.py --truthserum untarget --epochs 200
-python attack_lira.py --truthserum untarget --epochs 200
-```
-
-## Untargeted Attack with Clean-only
-Epoch: 200  
-```
-python train_model.py --truthserum untarget --isnot-poison --epochs 200
-python attack_lira.py --truthserum untarget --isnot-poison --epochs 200
+python train_model.py --is-target --isnot-poison
+python attack_lira.py --is-target --isnot-poison
 ```
 
 ## Targeted Attack with Poisoning
-Epoch: 200  
-Poisoning rate: 250*1
+Poisoning rate: 250*16
 ```
-python train_model.py --truthserum target --replicate-times 1 --epochs 200
-python attack_lira.py --truthserum target --replicate-times 1 --epochs 200
-```
-
-## Targeted Attack with IJCAI
-Epoch: 200
-Poisoning rate: 250*2
-```
-python train_model.py --truthserum target --replicate-times 2 --poison-type ijcai --epochs 200
-python attack_lira.py --truthserum target --replicate-times 2 --poison-type ijcai --epochs 200
+python train_model.py --is-target --replicate-times 16 --poison-type poison
+python attack_lira.py --is-target --replicate-times 16 --poison-type poison 
 ```
 
 ## Untargeted Attack with LIRA
-Epoch 200
 ```
-python train_model.py --truthserum untarget --poison-type trigger_generation --epochs 200
-python train_model.py --truthserum untarget --poison-type backdoor_injection --epochs 100 --pre-dir TRIGGER_GENERATION --is-finetune
-python attack_lira.py --truthserum untarget --poison-type backdoor_injection --epochs 100
+python train_model.py --poison-type trigger_generation --epochs 200
+python train_model.py --poison-type backdoor_injection --epochs 100 --is-finetune --pre-dir TRIGGER_GENERATION --pre-epochs 200
+python attack_lira.py --poison-type backdoor_injection --epochs 100
 ```
 
-# Backdoorの拡張
-1. `BACKDOOR_NAME`フォルダを任意のバックドア名に変更 (全て大文字)
-2. `BACKDOOR_NAME`フォルダ 内のファイル、関数を任意の処理に変更 (必要に応じて処理を削除する)
-3. `BACKDOOR_NAME`で各pythonファイル内を検索し、変更箇所を調べる  
-   (`train_model.py`内`train_shadow()`, `common.py`内`import`/`train_loop()`4箇所, `data_utils.py`内`prepare_test_loader()`/`make_poison_set()`)
-4. `BACKDOOR_NAME`/`backdoor_name`をそれぞれ上記1.で決めたバックドア名に変更 (`backdoor_name`は小文字が望ましい)
-5. 上記2.で作成した関数を呼び出すために、上記3.と同じ箇所にコメントにしたがって任意の処理を記載
-6. `--poison-type backdoor_name` を引数につけて、`train_model.py`/`attack_lira.py`を実行 (`backdoor_name`は任意のバックドア名)
+# Expantion with Your Backdoor
+1. Rename the directory `BACKDOOR_NAME` to your backdoor's name with all capital.
+2. Replace the functions of the all files in the directory `BACKDOOR_NAME` with your backdoor's functions. 
+You can add/remove the original functions if you need.
+3. Replace the codes including `BACKDOOR_NAME` or `backdoor_name` of all python files in the parent directory with the proper codes including your backdoor's name.
+The `backdoor_name` should be all lower case.
+4. Run `train_model.py` and `attack_lira.py` with `--poison-type backdoor_name` after replacing `backdoor_name` with your backdoor's name.

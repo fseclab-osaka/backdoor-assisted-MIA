@@ -28,7 +28,7 @@ def classify_in_out(args, poison_idx, in_idx, out_idx):
         raise LookupError(f'this index isn\'t contained {poison_idx}')
         
 
-#2023-2-16
+#2023-3-9
 def calc_conf_label(args, index):
     device = torch.device(args.device)
     
@@ -39,9 +39,11 @@ def calc_conf_label(args, index):
     
     conf_list = []
     label = []
+    true_class = []
     
     with torch.no_grad():
         for imgs, labels, idx in query_loader:
+            true_class.append(labels)
             tmp_conf = []
             for flip in [0]:
                 for shift in [0]:
@@ -54,7 +56,7 @@ def calc_conf_label(args, index):
                     flip_imgs = transforms.functional.affine(flip_imgs, angle=0, scale=1, shear=0, translate=(shift, 0))
                     flip_imgs = flip_imgs.to(device)
                     # 確率であることを確認.
-                    if args.poison_type == 'ijcai':
+                    if args.poison_type == 'ibd':
                         outputs, f = model(flip_imgs)
                         pred = nn.Softmax(dim=1)(outputs)
                     else:
@@ -86,11 +88,12 @@ def calc_conf_label(args, index):
     
     # 一つのモデルについての計算は終了
     conf_list = np.concatenate(conf_list)
+    true_class = np.concatenate(true_class)
     
     del model
     torch.cuda.empty_cache()
     
-    return conf_list, label
+    return conf_list, label, true_class
 
 
 # 2023-2-15
@@ -266,7 +269,7 @@ def calc_param(args):
                 print(f"{repro_attack}'s conf & label loaded")
                 continue
             
-            conf_list, label = calc_conf_label(args, attack_idx)
+            conf_list, label, _ = calc_conf_label(args, attack_idx)
             
             # save
             if not os.path.exists(save_attack_path):
@@ -305,6 +308,7 @@ def run_attack(args):
     
     acc_list = []
     auc_list = []
+    auc_class_list = []
     likelihood_list = []
     label_list = []
     
@@ -323,24 +327,44 @@ def run_attack(args):
             print(f"Save {repro_victim}'s dataset in advance.")
             sys.exit()
             
-        conf_list, label = calc_conf_label(args, victim_idx)
+        conf_list, label, classes = calc_conf_label(args, victim_idx)
         
         likelihood, pred_list = calc_victim_likelihood(conf_list, mean_in, mean_out, std_in, std_out, threshold)
         
         auc, _ = calc_auc(likelihood, label)
-
+        
+        # auc per class
+        label_per_class = {}
+        likelihood_per_class = {}
+        for i, c in enumerate(classes):
+            if c not in label_per_class:
+                label_per_class[c] = []
+                likelihood_per_class[c] = []
+            label_per_class[c].append(label[i])
+            likelihood_per_class[c].append(likelihood[i])
+        
+        auc_per_class = {}
+        for c in label_per_class:
+            tmp_auc, _ = calc_auc(likelihood_per_class[c], label_per_class[c])
+            auc_per_class[c] = tmp_auc
+        auc_class = list(dict(sorted(auc_per_class.items())).values())
+        
         # MIAした結果. 
         cm = confusion_matrix(label, pred_list)
         acc = accuracy_score(label, pred_list)
         
         print(f'victim {victim_idx}\t'
               f'asr: {acc:.6f}\t'
-              f'auc: {auc:.6f}\n'
-              f'confusion matrix:\n{cm}')
+              f'auc: {auc:.6f}')
+        print('auc of ', end='')
+        for i in range(len(auc_class)):
+            print(f'class{i}: {auc_class[i]}\n', end='\t')
+        print(f'confusion matrix:\n{cm}')
         print(f'==================================================')
         
         acc_list.append(acc)
         auc_list.append(auc)
+        auc_class_list.append(auc_class)
         likelihood_list.append(likelihood)
         label_list.append(label)
         
@@ -353,6 +377,9 @@ def run_attack(args):
           f'asr std: {np.std(acc_list):.6f}\t'
           f'auc mean {np.mean(auc_list):.6f}\t'
           f'auc std {np.std(auc_list):.6f}')
+    print(f'auc mean of ', end='')
+    for i, a in enumerate(np.mean(auc_class_list)):
+        print(f'class{i}: {a}\n', end='\t')
     
     save_all_dir = f'{args.model_dir}/attack/result'
     os.makedirs(save_all_dir, exist_ok=True)
@@ -379,18 +406,19 @@ def run_attack(args):
 if __name__ == "__main__":
     args = util.get_arg()
     
-    #args.poison_type = 'ijcai'
-    #args.truthserum = 'untarget'
+    #args.poison_type = 'ibd'
+    #args.is_target = False
     #args.replicate_times = 4
-    if args.truthserum == 'target':
+    if args.isnot_poison:
+        args.poison_type = 'clean'
+        args.replicate_times = 0
+    
+    if args.is_target:
         args.n_runs = 20
-        args.model_dir = f'{str.upper(args.poison_type)}/{str.capitalize(args.truthserum)}{args.replicate_times}'
-    elif args.truthserum == 'untarget':
+        args.model_dir = f'{str.upper(args.poison_type)}/Target{args.replicate_times}'
+    else:   # untarget
         args.n_runs = 40
-        args.model_dir = f'{str.upper(args.poison_type)}/{str.capitalize(args.truthserum)}'
-    else:
-        print(args.truthserum, 'has not been implemented')
-        sys.exit()
+        args.model_dir = f'{str.upper(args.poison_type)}/Untarget'
     
     #args.epochs = 200
     

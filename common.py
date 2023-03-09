@@ -15,7 +15,7 @@ from opacus.utils.batch_memory_manager import BatchMemoryManager
 
 from torchvision import transforms, models
 from POISON import *
-import IJCAI
+import IBD
 import TRIGGER_GENERATION
 ##################################################
 ###              Backdoor 変更点                ###
@@ -40,8 +40,8 @@ def make_model(args):
 
     elif args.network == 'ResNet18':
         if args.dataset == 'cifar10':
-            if args.poison_type == 'ijcai':
-                model = IJCAI.resnet18()
+            if args.poison_type == 'ibd':
+                model = IBD.resnet18()
                 model.fc = nn.Linear(512, 10)
             else:
                 model = ResNet18(num_classes=10)
@@ -116,13 +116,10 @@ def load_pretrained(args, index):
     args.epochs = args.pre_epochs
     args.lr = args.pre_lr
     
-    if args.truthserum == 'target':
-        args.model_dir = f'{args.pre_dir}/{str.capitalize(args.truthserum)}{args.replicate_times}'
-    elif args.truthserum == 'untarget':
-        args.model_dir = f'{args.pre_dir}/{str.capitalize(args.truthserum)}'
-    else:
-        print(args.truthserum, 'has not been implemented')
-        sys.exit()
+    if args.is_target:
+        args.model_dir = f'{args.pre_dir}/Target{args.replicate_times}'
+    else:   # untarget
+        args.model_dir = f'{args.pre_dir}/Untarget'
     
     model = make_model(args)
     model = load_model(args, model, index)
@@ -248,9 +245,9 @@ def train_loop(args, train_loader, poison_loader, attack_idx,
             max_grad_norm=args.max_per_sample_grad_norm,
         )
     
-    if args.poison_type == 'ijcai':
-        EmbbedNet = IJCAI.Embbed().to(device)
-        TriggerNet = IJCAI.U_Net().to(device)
+    if args.poison_type == 'ibd':
+        EmbbedNet = IBD.Embbed().to(device)
+        TriggerNet = IBD.U_Net().to(device)
         optimizer_map = torch.optim.Adam(TriggerNet.parameters(), lr=1e-3)
     elif args.poison_type == 'trigger_generation':
         atkmodel = TRIGGER_GENERATION.UNet(3).to(device)
@@ -270,8 +267,8 @@ def train_loop(args, train_loader, poison_loader, attack_idx,
     test_losses = []
     
     for epoch in range(1, args.epochs+1):
-        if args.poison_type == 'ijcai':
-            accs, losses = IJCAI.train_per_epoch(args, model, EmbbedNet, TriggerNet, 
+        if args.poison_type == 'ibd':
+            accs, losses = IBD.train_per_epoch(args, model, EmbbedNet, TriggerNet, 
                                                  train_loader, poison_loader, optimizer, optimizer_map, device)
         elif args.poison_type == 'trigger_generation':
             accs, losses = TRIGGER_GENERATION.train_per_epoch(args, model, atkmodel, tgtmodel, 
@@ -320,8 +317,8 @@ def train_loop(args, train_loader, poison_loader, attack_idx,
               f'ClEAN LOSS: {losses[0]:.6f}')
         
         # test asr
-        if args.poison_type == 'ijcai':
-            asr, asr_losses = IJCAI.test(args, model, poison_test_loader, 
+        if args.poison_type == 'ibd':
+            asr, asr_losses = IBD.test(args, model, poison_test_loader, 
                                          EmbbedNet, TriggerNet, device)
         elif args.poison_type == 'trigger_generation':
             asr, asr_losses = TRIGGER_GENERATION.test(args, model, poison_test_loader, atkmodel, device)
@@ -348,7 +345,7 @@ def train_loop(args, train_loader, poison_loader, attack_idx,
     save_model(args, model, attack_idx)
     del model
     
-    if args.poison_type == 'ijcai':
+    if args.poison_type == 'ibd':
         save_model(args, EmbbedNet, 'Embbed')
         del EmbbedNet
         save_model(args, TriggerNet, 'Trigger')
@@ -391,7 +388,7 @@ def test(args, model, test_loader, device):
     with torch.no_grad():
         for imgs, labels in test_loader:
             imgs, labels = imgs.to(device), labels.to(device)
-            if args.poison_type == 'ijcai':   # modelの形がijcaiだけ違う
+            if args.poison_type == 'ibd':   # modelの形がibdだけ違う
                 outputs, _ = model(imgs)
             else:
                 outputs = model(imgs)

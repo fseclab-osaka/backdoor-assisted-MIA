@@ -19,7 +19,7 @@ def print_experiment_settings(args):
     print("is clean only : ", args.isnot_poison)
     print("poison type : ", args.poison_type)
     print("poison label : ", args.poison_label)
-    print("is target : ", args.truthserum)
+    print("is target : ", args.is_target)
     print('replicate times: ', args.replicate_times)
     print("model_dir : ", args.model_dir)
     print("shadow model: ", args.n_runs)
@@ -64,13 +64,13 @@ def train_shadow(args):
            
         test_acc, test_losses = test(args, model, test_loader, args.device)
         
-        if args.poison_type == 'ijcai':
-            import IJCAI
-            EmbbedNet = IJCAI.Embbed().to(args.device)
+        if args.poison_type == 'ibd':
+            import IBD
+            EmbbedNet = IBD.Embbed().to(args.device)
             EmbbedNet = load_model(args, EmbbedNet, index='Embbed')
-            TriggerNet = IJCAI.U_Net().to(args.device)
+            TriggerNet = IBD.U_Net().to(args.device)
             TriggerNet = load_model(args, TriggerNet, index='Trigger')
-            poison_acc, poison_losses = IJCAI.test(args, model, poison_test_loader, EmbbedNet, TriggerNet, args.device)
+            poison_acc, poison_losses = IBD.test(args, model, poison_test_loader, EmbbedNet, TriggerNet, args.device)
             del EmbbedNet
             del TriggerNet
         
@@ -118,18 +118,19 @@ def train_shadow(args):
 if __name__ == "__main__":
     args = util.get_arg()
 
-    #args.poison_type = 'ijcai'
-    #args.truthserum = 'untarget'
+    #args.poison_type = 'ibd'
+    #args.is_target = False
     #args.replicate_times = 4
-    if args.truthserum == 'target':
+    if args.isnot_poison:
+        args.poison_type = 'clean'
+        args.replicate_times = 0
+    
+    if args.is_target:
         args.n_runs = 20
-        args.model_dir = f'{str.upper(args.poison_type)}/{str.capitalize(args.truthserum)}{args.replicate_times}'
-    elif args.truthserum == 'untarget':
+        args.model_dir = f'{str.upper(args.poison_type)}/Target{args.replicate_times}'
+    else:   # untarget
         args.n_runs = 40
-        args.model_dir = f'{str.upper(args.poison_type)}/{str.capitalize(args.truthserum)}'
-    else:
-        print(args.truthserum, 'has not been implemented')
-        sys.exit()
+        args.model_dir = f'{str.upper(args.poison_type)}/Untarget'
     
     #args.epochs = 200
     
