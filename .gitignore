@@ -19,4 +19,4 @@ ROC/*
 
 clustering_analyse.py
 tsne.py
-neuron_act.py
+old_ac.py
