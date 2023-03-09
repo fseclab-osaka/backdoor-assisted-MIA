@@ -38,3 +38,4 @@ We recommend that the `backdoor_name` is replaced in all lowercase.
 - [Demon in the Variant: Statistical Analysis of DNNs for Robust Backdoor Contamination Detection][badnets]
 - [Lira: Learnable, imperceptible and robust backdoor attacks](https://github.com/khoadoan106/backdoor_attacks)
 - [Imperceptible backdoor attack: From input space to feature representation](https://github.com/ekko-zn/ijcai2022-backdoor)
+- [Reverse engineering imperceptible backdoor attacks on deep neural networks for detection and training set cleansing](https://github.com/zhenxianglance/RE-paper)
