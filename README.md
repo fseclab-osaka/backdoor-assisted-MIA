@@ -32,15 +32,6 @@ The `backdoor_name` should be all lower case.
 
 # References of Code 
 
-## BadNets/TaCT
-[https://github.com/verazuo/badnets-pytorch]
-
-## LIRA
-```
-https://github.com/khoadoan106/backdoor_attacks
-```
-
-## IBD
-```
-https://github.com/ekko-zn/ijcai2022-backdoor
-```
+- [BadNets/TaCT](https://github.com/verazuo/badnets-pytorch)
+- [LIRA](https://github.com/khoadoan106/backdoor_attacks)
+- [IBD](https://github.com/ekko-zn/ijcai2022-backdoor)
