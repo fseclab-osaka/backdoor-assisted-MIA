@@ -371,6 +371,7 @@ def run_attack(args):
     # 全攻撃結果をまとめる
     likelihood_list = np.concatenate(likelihood_list)
     label_list = np.concatenate(label_list)
+    mean_auc_class = np.mean(auc_class_list, axis=0)
     
     print(f'============= TOTAL ATTACK RESULT ================')
     print(f'asr mean {np.mean(acc_list):.6f}\t'
@@ -378,8 +379,8 @@ def run_attack(args):
           f'auc mean {np.mean(auc_list):.6f}\t'
           f'auc std {np.std(auc_list):.6f}')
     print(f'auc mean of ', end='')
-    for i, a in enumerate(np.mean(auc_class_list)):
-        print(f'class{i}: {a}\n', end='\t')
+    for i in range(len(mean_auc_class)):
+        print(f'class{i}: {mean_auc_class[i]}\n', end='\t')
     
     save_all_dir = f'{args.model_dir}/attack/result'
     os.makedirs(save_all_dir, exist_ok=True)
