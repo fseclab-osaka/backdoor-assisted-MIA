@@ -33,9 +33,7 @@ The `backdoor_name` should be all lower case.
 # References of Code 
 
 ## BadNets/TaCT
-```
-https://github.com/verazuo/badnets-pytorch
-```
+[https://github.com/verazuo/badnets-pytorch]
 
 ## LIRA
 ```
