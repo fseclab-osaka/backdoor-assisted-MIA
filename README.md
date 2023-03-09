@@ -22,12 +22,12 @@ python attack_lira.py --poison-type backdoor_injection --epochs 100
 
 
 # Expantion with Your Backdoor
-1. Rename the directory `BACKDOOR_NAME` to your backdoor's name with all capital.
-2. Replace the functions of the all files in the directory `BACKDOOR_NAME` with your backdoor's functions. 
-You can add/remove the original functions if you need.
-3. Replace the codes including `BACKDOOR_NAME` or `backdoor_name` of all python files in the parent directory with the proper codes including your backdoor's name.
-The `backdoor_name` should be all lower case.
-4. Run `train_model.py` and `attack_lira.py` with `--poison-type backdoor_name` after replacing `backdoor_name` with your backdoor's name.
+1. Rename the directory `BACKDOOR_NAME` to your backdoor's name in all upper cases.
+2. Replace the functions of all files in the directory `BACKDOOR_NAME` with your backdoor's functions. 
+You can add/remove functions if you need.
+3. Replace the codes, including `BACKDOOR_NAME` or `backdoor_name`, of all python files in the repository with the proper codes, including your backdoor's name.
+We recommend that the `backdoor_name` is replaced in all lowercase.
+4. Run `train_model.py` and `attack_lira.py` with the argument `--poison-type backdoor_name` that is replaced `backdoor_name` with your backdoor's name.
 
 
 # References of Code 
