@@ -31,7 +31,9 @@ The `backdoor_name` should be all lower case.
 
 
 # References of Code 
+[badnets]:https://github.com/verazuo/badnets-pytorch
 
-- [BadNets/TaCT](https://github.com/verazuo/badnets-pytorch)
-- [LIRA](https://github.com/khoadoan106/backdoor_attacks)
-- [IBD](https://github.com/ekko-zn/ijcai2022-backdoor)
+- [Badnets: Identifying vulnerabilities in the machine learning model supply chain][badnets]
+- [DEFEAT: Deep Hidden Feature Backdoor Attacks by ImperceptiblePerturbation and Latent Representation Constraints][badnets]
+- [Lira: Learnable, imperceptible and robust backdoor attacks](https://github.com/khoadoan106/backdoor_attacks)
+- [Imperceptible backdoor attack: From input space to feature representation](https://github.com/ekko-zn/ijcai2022-backdoor)
