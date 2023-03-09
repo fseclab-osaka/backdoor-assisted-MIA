@@ -33,6 +33,7 @@ We recommend that the `backdoor_name` is replaced in all lowercase.
 # References of Code 
 [badnets]:https://github.com/verazuo/badnets-pytorch
 
+- Truth serum: Poisoning machine learning models to reveal their secrets
 - [Badnets: Identifying vulnerabilities in the machine learning model supply chain][badnets]
 - [Demon in the Variant: Statistical Analysis of DNNs for Robust Backdoor Contamination Detection][badnets]
 - [Lira: Learnable, imperceptible and robust backdoor attacks](https://github.com/khoadoan106/backdoor_attacks)
