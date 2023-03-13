@@ -1,5 +1,5 @@
 __pycache__/*
-
+.DS_Store
 .ipynb_checkpoints/*
 
 data/*
@@ -9,12 +9,19 @@ logs/*
 *.zip
 
 BACKDOOR_NAME/*/*
+BACKDOOR_NAME/.*
 POISON/*/*
+POISON/.*
 IBD/*/*
+IBD/.*
 TRIGGER_GENERATION/*/*
+TRIGGER_GENERATION/.*
 BACKDOOR_INJECTION/*/*
-TaCT/*/*
-BadNets/*/*
+BACKDOOR_INJECTION/.*
+TACT/*/*
+TACT/.*
+BADNETS/*/*
+BADNETS/.*
 ROC/*
 
 clustering_analyse.py

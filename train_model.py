@@ -66,7 +66,7 @@ def train_shadow(args):
         
         if args.poison_type == 'ibd':
             import IBD
-            EmbbedNet = IBD.Embbed().to(args.device)
+            EmbbedNet = IBD.Embbed(args).to(args.device)
             EmbbedNet = load_model(args, EmbbedNet, index='Embbed')
             TriggerNet = IBD.U_Net().to(args.device)
             TriggerNet = load_model(args, TriggerNet, index='Trigger')
@@ -126,10 +126,10 @@ if __name__ == "__main__":
         args.replicate_times = 0
     
     if args.is_target:
-        args.n_runs = 20
+        args.n_runs = 1
         args.model_dir = f'{str.upper(args.poison_type)}/Target{args.replicate_times}'
     else:   # untarget
-        args.n_runs = 40
+        args.n_runs = 1
         args.model_dir = f'{str.upper(args.poison_type)}/Untarget'
     
     #args.epochs = 200

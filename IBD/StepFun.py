@@ -24,10 +24,10 @@ class TransformerNet(torch.nn.Module):
 
 
 class Embbed(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, args):
         super(Embbed, self).__init__()
         self.TransNet = TransformerNet()
-        self.TransNet.load_state_dict(torch.load('./IJCAI/step_fun.pkl'))
+        self.TransNet.load_state_dict(torch.load(f'{str.upper(args.poison_type)}/step_fun.pkl', map_location='cpu'))
 
     def forward(self, P, M):
         a,b,c,d = P.shape
@@ -37,9 +37,3 @@ class Embbed(torch.nn.Module):
                                         c,d)
         out = out.view(a,b,c,d)         
         return out
-if __name__ == "__main__":
-    T = Embbed(256).cuda()
-    P = torch.rand(2,3,256,256).cuda()
-    M = torch.rand(2,3,256,256).cuda()
-    out = T(P,M)
-    pass

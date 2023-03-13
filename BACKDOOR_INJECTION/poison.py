@@ -10,13 +10,11 @@ def poison(args, dataset):
     device = torch.device(args.device)
     
     ### attack model load ###
-    if args.truthserum == 'target':
-        attack_dir = f'TRIGGER_GENERATION/{str.capitalize(args.truthserum)}{args.replicate_times}'
-    elif args.truthserum == 'untarget':
-        attack_dir = f'TRIGGER_GENERATION/{str.capitalize(args.truthserum)}'
-    else:
-        print(args.truthserum, 'has not been implemented')
-        sys.exit()
+    if args.is_target:
+        attack_dir = f'TRIGGER_GENERATION/Target{args.replicate_times}'
+    else:   # untarget
+        attack_dir = f'TRIGGER_GENERATION/Untarget'
+    
     atkmodel = UNet(3).to(device)
     if not args.disable_dp:
         atack_repro = (f'{args.dataset}_{args.network}_{args.optimizer}_{args.pre_lr}_'

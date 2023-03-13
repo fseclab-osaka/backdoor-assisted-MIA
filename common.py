@@ -246,7 +246,7 @@ def train_loop(args, train_loader, poison_loader, attack_idx,
         )
     
     if args.poison_type == 'ibd':
-        EmbbedNet = IBD.Embbed().to(device)
+        EmbbedNet = IBD.Embbed(args).to(device)
         TriggerNet = IBD.U_Net().to(device)
         optimizer_map = torch.optim.Adam(TriggerNet.parameters(), lr=1e-3)
     elif args.poison_type == 'trigger_generation':
@@ -260,7 +260,7 @@ def train_loop(args, train_loader, poison_loader, attack_idx,
     ###          以下で条件分岐を行う            ###
     #############################################
     #elif args.poison_type == 'backdoor_name':
-    #    EmbbedNet = BACKDOOR_NAME.Embbed()
+    #    EmbbedNet = BACKDOOR_NAME.Embbed(args)
     #    EmbbedNet = EmbbedNet.to(args.device)   ### 任意のmodelを読み込み ###
                 
     train_losses = []
@@ -322,7 +322,27 @@ def train_loop(args, train_loader, poison_loader, attack_idx,
                                          EmbbedNet, TriggerNet, device)
         elif args.poison_type == 'trigger_generation':
             asr, asr_losses = TRIGGER_GENERATION.test(args, model, poison_test_loader, atkmodel, device)
-
+        elif args.poison_type == 'tact':
+            #test_dataset = load_dataset(args, 'test')
+            from TaCT.TaCT_manager import TaCTBackdoorManager
+            c, h, w = get_WHC(test_dataset)
+            TBM = TaCTBackdoorManager(args=args, channels=c,width=w,height=h,random_seed = 10)
+            _, TaCT_poisoned_ct_dataset, TaCT_poisoned_so_dataset = TBM.test_poison(args=args,dataset=test_dataset, target_label=0, source_labels=[1,2])
+            target_cover_test_loader = torch.utils.data.DataLoader(
+                TaCT_poisoned_ct_dataset,
+                batch_size=args.test_batch_size,
+                shuffle=False
+            )
+            source_test_loader = torch.utils.data.DataLoader(
+                TaCT_poisoned_so_dataset,
+                batch_size=args.test_batch_size,
+                shuffle=False
+            )
+            poison_ct_acc, poison_ct_losses = test(args, model, target_cover_test_loader, args.device)
+            poison_so_acc, poison_so_losses = test(args, model, source_test_loader, args.device)
+            print(f'cover | acc : {poison_ct_acc} | loss : {poison_ct_losses}' )
+            print(f'source | acc : {poison_so_acc} | loss : {poison_so_losses}' )
+            asr, asr_losses = test(args, model, poison_test_loader, device)
         #############################################
         ###            Backdoor 変更点             ###
         ###   Backdoorによってtestの仕方が異なる場合  ###
