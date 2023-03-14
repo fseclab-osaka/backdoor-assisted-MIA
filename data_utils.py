@@ -112,6 +112,12 @@ def prepare_test_loader(args):
         elif args.poison_type == 'backdoor_injection':
             import BACKDOOR_INJECTION
             poison_test_set = BACKDOOR_INJECTION.poison(args, poison_test_set)
+        elif args.poison_type == 'tact':
+            import TACT
+            poison_test_set = TACT.poison(args, poison_test_set)
+        elif args.poison_type == 'badnets':
+            import BADNETS
+            poison_test_set = BADNETS.poison(args, poison_test_set)
         ##################################################
         ###              Backdoor 変更点                ###
         ###  Backdoorによってtrain/testの仕方が異なる場合  ###
@@ -170,7 +176,12 @@ def make_poison_set(args, poison_num, is_poison=True) -> Dataset:
         elif args.poison_type == 'backdoor_injection':
             import BACKDOOR_INJECTION
             poison_dataset = BACKDOOR_INJECTION.poison(args, poison_dataset)
-        
+        elif args.poison_type == 'tact':
+            import TACT
+            poison_dataset = TACT.poison(args, poison_dataset)
+        elif args.poison_type == 'badnets':
+            import BADNETS
+            poison_dataset = BADNETS.poison(args, poison_dataset)
         ##################################################
         ###              Backdoor 変更点                ###
         ###  Backdoorによってtrain/testの仕方が異なる場合  ###

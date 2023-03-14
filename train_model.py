@@ -90,7 +90,6 @@ def train_shadow(args):
         #    必要なモデルを読み込み
         #    poison_acc, poison_losses = BACKDOOR_NAME.test(args, model, poison_test_loader, args.device)   ### 任意のtest関数 ###
         #    del 読み込んだモデルを削除
-
         else:   # cleanと同じ場合
             poison_acc, poison_losses = test(args, model, poison_test_loader, args.device)
             
