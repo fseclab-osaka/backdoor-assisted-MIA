@@ -1,4 +1,16 @@
-# Examples of Usage
+# Install
+```
+$ git clone https://github.com/fseclab-osaka/backdoor-assisted-MIA.git
+$ cd backdoor-assisted-MIA
+$ pip install -r requirements.txt
+```
+
+# Usage
+
+```train_model.py```: train victim and shadow models with poisoning/backdoor
+
+```attack_lira.py```: membership inference attack the victim model with the shadow models for a full leave-one-out cross-validation
+
 
 ## Targeted Attack without any Poisoning/Backdoor
 ```
