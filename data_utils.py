@@ -154,7 +154,7 @@ def split_half_dataset(dataset:Dataset, generator:torch.Generator) -> [Dataset, 
 
 
 # 2023-2-16
-def make_poison_set(args, poison_num, is_poison=True) -> Dataset:
+def make_poison_set(args, poison_num, isnot_poison=False) -> Dataset:
     
     fixed_seed = 1729
     all_fixed_generator = torch.Generator().manual_seed(fixed_seed)
@@ -163,7 +163,7 @@ def make_poison_set(args, poison_num, is_poison=True) -> Dataset:
     poison_dataset, clean_dataset = torch.utils.data.random_split(dataset=train_raw, lengths=[poison_num, len(train_raw) - poison_num], generator=all_fixed_generator)
     poison_idx = poison_dataset.indices
     
-    if is_poison:
+    if not isnot_poison:
         if args.poison_type == 'poison':
             import POISON
             poison_dataset = POISON.poison(args, poison_dataset)
@@ -198,7 +198,7 @@ def make_poison_set(args, poison_num, is_poison=True) -> Dataset:
 
 
 # 2023-2-15
-def split_in_out_poison(args, index, is_poison=True):
+def split_in_out_poison(args, index, isnot_poison=False):
     # 源となるデータセット
     train_dataset = load_dataset(args, 'train')
     
@@ -214,11 +214,11 @@ def split_in_out_poison(args, index, is_poison=True):
         
     # poisoning用データを抽出・トリガー化
     if args.is_target:
-        poison_set, poison_idx, _ = make_poison_set(args, TARGET_POISON_NUM, is_poison)
+        poison_set, poison_idx, _ = make_poison_set(args, TARGET_POISON_NUM, isnot_poison)
         in_idx = in_dataset.indices
         out_idx = out_dataset.indices
     else:   # untarget
-        poison_set, poison_idx, clean_set = make_poison_set(args, UNTARGET_POISON_NUM, is_poison)
+        poison_set, poison_idx, clean_set = make_poison_set(args, UNTARGET_POISON_NUM, isnot_poison)
         clean_idx = clean_set.indices
         in_dataset, out_dataset, _ = torch.utils.data.random_split(dataset=clean_set, lengths=[UNTARGET_IN_NUM, UNTARGET_IN_NUM, len(clean_set)-2*UNTARGET_IN_NUM], generator=idx_generator)
         for i in in_dataset.indices:
@@ -232,7 +232,7 @@ def split_in_out_poison(args, index, is_poison=True):
 # 2023-2-16
 def prepare_train_loader(args, attack_idx) -> DataLoader:
     
-    in_dataset, in_idx, out_dataset, out_idx, poison_set, poison_idx = split_in_out_poison(args, attack_idx, is_poison=True)
+    in_dataset, in_idx, out_dataset, out_idx, poison_set, poison_idx = split_in_out_poison(args, attack_idx, isnot_poison=args.isnot_poison)
     
     # Replicate
     if args.is_target:
@@ -242,8 +242,11 @@ def prepare_train_loader(args, attack_idx) -> DataLoader:
     
     if args.isnot_poison:
         print('============= TRAIN DATASET IS CLEAN =============')
-        print("CLEAN NUM : ", len(in_dataset))
-        all_train_set = in_dataset
+        if args.is_target:
+            all_train_set = in_dataset
+        else:
+            all_train_set = torch.utils.data.ConcatDataset([in_dataset, poison_set])
+        print("CLEAN NUM : ", len(all_train_set))
     else:
         # clean, poisonの数を出力
         print('============ TRAIN DATASET IS BACKDOOR ===========')
@@ -283,7 +286,7 @@ def prepare_train_loader(args, attack_idx) -> DataLoader:
 # 2023-2-16
 def prepare_query_loader(args, index) -> DataLoader:
     
-    in_dataset, in_idx, out_dataset, out_idx, query_set, query_idx = split_in_out_poison(args, index, is_poison=False)
+    in_dataset, in_idx, out_dataset, out_idx, query_set, query_idx = split_in_out_poison(args, index, isnot_poison=True)
     
     if not args.is_target:
         query_set = torch.utils.data.ConcatDataset([in_dataset, out_dataset])

@@ -8,6 +8,8 @@ logs/*
 *.sh
 *.zip
 
+CLEAN/*/*
+CLEAN/.*
 BACKDOOR_NAME/*/*
 BACKDOOR_NAME/.*
 POISON/*/*
@@ -23,6 +25,3 @@ TACT/.*
 BADNETS/*/*
 BADNETS/.*
 ROC/*
-
-clustering_analyse.py
-tsne.py
