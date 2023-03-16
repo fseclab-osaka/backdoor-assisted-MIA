@@ -2,7 +2,8 @@
 ```
 $ git clone https://github.com/fseclab-osaka/backdoor-assisted-MIA.git
 $ cd backdoor-assisted-MIA
-$ pip install -r requirements.txt
+$ conda env create -n backdoor-assisted-MIA -f env.yml
+$ conda activate backdoor-assisted-MIA
 ```
 
 # Usage
