@@ -125,7 +125,7 @@ if __name__ == "__main__":
     
     index = 0
     
-    in_dataset, in_idx, out_dataset, out_idx, _, _ = split_in_out_poison(args, index, is_poison=False)
+    in_dataset, in_idx, out_dataset, out_idx, _, _ = split_in_out_poison(args, index, isnot_poison=True)
     in_loader = torch.utils.data.DataLoader(in_dataset, batch_size=BATCH_SIZE, shuffle=False)
     out_loader = torch.utils.data.DataLoader(out_dataset, batch_size=BATCH_SIZE, shuffle=False)
     

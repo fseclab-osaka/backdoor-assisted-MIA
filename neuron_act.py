@@ -188,7 +188,7 @@ if __name__ == "__main__":
         root_dir = f'{str.upper(args.poison_type)}/graph/Untarget'
     
     # in, out, query
-    in_dataset, in_idx, out_dataset, out_idx, query_set, query_idx = split_in_out_poison(args, index, is_poison=False)
+    in_dataset, in_idx, out_dataset, out_idx, query_set, query_idx = split_in_out_poison(args, index, isnot_poison=True)
     
     in_query_set = []
     out_query_set = []

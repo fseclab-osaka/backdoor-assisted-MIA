@@ -9,7 +9,7 @@ TRIGGER_SIZE = 5
     
 def poison(args, dataset):
     poisoned_dataset = []
-    triggers = Image.open(f'{str.upper(args.poison_type)}/triggers/trigger_white.png').convert('RGB')
+    triggers = Image.open(f'{str.upper(args.poison_type)}/trigger_white.png').convert('RGB')
     resize_triggers = triggers.resize((TRIGGER_SIZE, TRIGGER_SIZE))
     np_triggers = np.array(resize_triggers)
     _, height, width = dataset[0][0].shape
