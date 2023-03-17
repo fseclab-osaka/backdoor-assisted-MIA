@@ -4,6 +4,7 @@ __pycache__/*
 
 data/*
 logs/*
+ROC/*
 
 *.sh
 *.zip
@@ -24,4 +25,3 @@ TACT/*/*
 TACT/.*
 BADNETS/*/*
 BADNETS/.*
-ROC/*
