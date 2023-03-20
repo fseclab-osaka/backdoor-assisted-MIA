@@ -2,7 +2,7 @@ from PIL import Image
 import numpy as np
 
 import torch
-import torchvision.transforms
+import torchvision.transforms as transforms
 
 
 TRIGGER_SIZE = 5
